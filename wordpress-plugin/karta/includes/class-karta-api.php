@@ -32,8 +32,24 @@ class Karta_API {
      * Make an authenticated request to the Karta API.
      */
     private static function request($endpoint, $method = 'GET', $body = null) {
+        // ═══════════════════════════════════════════════════════════════════════
+        // TEMPORARY DIAGNOSTIC LOGGING - REMOVE AFTER DEBUGGING
+        // ═══════════════════════════════════════════════════════════════════════
+        $diag_start = microtime(true);
+        $connection_id = Karta_Settings::get_connection_id();
+        error_log(sprintf(
+            '[KARTA DIAG] request() start | endpoint=%s | method=%s | connectionIdPrefix=%s | hasBody=%s',
+            $endpoint,
+            $method,
+            $connection_id ? substr($connection_id, 0, 8) : 'none',
+            $body !== null ? 'yes' : 'no'
+        ));
+        // ═══════════════════════════════════════════════════════════════════════
+
         $api_url = Karta_Settings::get_api_url();
         if (empty($api_url)) {
+            // DIAG: Log configuration error
+            error_log('[KARTA DIAG] request() failed: API URL not configured');
             return new WP_Error('not_configured', 'Karta API URL is not configured.');
         }
 
@@ -50,19 +66,60 @@ class Karta_API {
             $args['body'] = json_encode($body);
         }
 
+        // DIAG: Log before HTTP request
+        error_log(sprintf(
+            '[KARTA DIAG] wp_remote_request() calling | url=%s | timeout=%d',
+            $url,
+            $args['timeout']
+        ));
+
         $response = wp_remote_request($url, $args);
 
+        // DIAG: Log after HTTP request
+        $diag_elapsed = round((microtime(true) - $diag_start) * 1000, 2);
+        error_log(sprintf(
+            '[KARTA DIAG] wp_remote_request() returned | elapsedMs=%s | isWpError=%s',
+            $diag_elapsed,
+            is_wp_error($response) ? 'yes' : 'no'
+        ));
+
         if (is_wp_error($response)) {
+            // DIAG: Log WP_Error details
+            error_log(sprintf(
+                '[KARTA DIAG] WP_Error | code=%s | message=%s',
+                $response->get_error_code(),
+                $response->get_error_message()
+            ));
             return $response;
         }
 
         $status_code = wp_remote_retrieve_response_code($response);
         $body = json_decode(wp_remote_retrieve_body($response), true);
 
+        // DIAG: Log response status
+        error_log(sprintf(
+            '[KARTA DIAG] response status=%d | bodyLength=%d',
+            $status_code,
+            strlen(wp_remote_retrieve_body($response))
+        ));
+
         if ($status_code < 200 || $status_code >= 300) {
             $error_message = isset($body['error']) ? $body['error'] : 'Unknown error';
+            // DIAG: Log HTTP error
+            error_log(sprintf(
+                '[KARTA DIAG] HTTP error | status=%d | error=%s',
+                $status_code,
+                $error_message
+            ));
             return new WP_Error('api_error', $error_message, ['status' => $status_code]);
         }
+
+        // DIAG: Log success
+        error_log(sprintf(
+            '[KARTA DIAG] request() success | endpoint=%s | elapsedMs=%s',
+            $endpoint,
+            $diag_elapsed
+        ));
 
         return $body;
     }
