@@ -5,14 +5,14 @@ import { prisma } from "@/lib/db/prisma";
  * WooCommerce Integration Authentication
  *
  * Authenticates WordPress plugin requests using HMAC-SHA256 signatures.
- * The connection ID identifies the merchant, and the signature proves
- * they possess the shared secret.
+ * Each connection has its own unique secret stored in the database.
  *
  * Security:
  * - The secret is never transmitted in the request body
  * - The signature is computed over connectionId + timestamp
  * - Timestamps are validated to prevent replay attacks
  * - The tenant is resolved from the connection, not from client input
+ * - Each connection uses its own per-connection secret
  */
 
 export interface AuthResult {
@@ -28,7 +28,7 @@ export interface AuthResult {
  * Expected headers:
  * - X-Karta-Connection-Id: The unique connection identifier
  * - X-Karta-Timestamp: Unix timestamp of the request
- * - X-Karta-Signature: HMAC-SHA256 of "connectionId + timestamp" using the secret
+ * - X-Karta-Signature: HMAC-SHA256 of "connectionId + timestamp" using the connection's secret
  */
 export async function authenticateWordPressRequest(
   connectionId: string | null,
@@ -55,7 +55,6 @@ export async function authenticateWordPressRequest(
   // Look up the connection
   const connection = await prisma.wooCommerceConnection.findUnique({
     where: { connectionId },
-    include: { tenant: true },
   });
 
   if (!connection) {
@@ -66,10 +65,10 @@ export async function authenticateWordPressRequest(
     return { success: false, error: "Connection is not active" };
   }
 
-  // Verify the signature
-  const secret = process.env.WORDPRESS_CONNECT_SECRET;
+  // Verify the signature using the per-connection secret
+  const secret = connection.connectionSecret;
   if (!secret) {
-    return { success: false, error: "Server configuration error" };
+    return { success: false, error: "Connection secret not configured" };
   }
 
   const expectedSignature = createHmac("sha256", secret)
@@ -96,7 +95,7 @@ export async function authenticateWordPressRequest(
 
 /**
  * Generate authentication headers for testing.
- * Used by the WordPress plugin and tests.
+ * Used by tests only — never expose this in production code paths.
  */
 export function generateAuthHeaders(
   connectionId: string,

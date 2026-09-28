@@ -17,7 +17,7 @@ class Karta_API {
         $secret = Karta_Settings::get_secret();
         $timestamp = (string) time();
 
-        // Create HMAC signature for authentication
+        // Create HMAC signature for authentication using per-connection secret
         $signature = hash_hmac('sha256', $connection_id . $timestamp, $secret);
 
         return [

@@ -30,15 +30,16 @@ model Tenant {
 
 // ─── WooCommerceConnection ───────────────────────────────────
 model WooCommerceConnection {
-  id           String   @id @default(cuid())
-  tenantId     String
-  siteUrl      String
-  siteName     String?
-  connectionId String   @unique
-  status       String   @default("active") // active | disconnected
-  lastSyncAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id               String   @id @default(cuid())
+  tenantId         String
+  siteUrl          String
+  siteName         String?
+  connectionId     String   @unique
+  connectionSecret String   // Per-connection secret for HMAC authentication
+  status           String   @default("active") // active | disconnected
+  lastSyncAt       DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 

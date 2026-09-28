@@ -79,11 +79,11 @@ describe("WooCommerce Authentication", () => {
         siteUrl: "https://example.com",
         siteName: "Test Store",
         connectionId: "conn-123",
+        connectionSecret: "test-secret",
         status: "active",
         lastSyncAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        tenant: { id: "tenant-1", name: "Test", slug: "test", createdAt: new Date(), updatedAt: new Date() },
       } as AnyMock);
 
       const timestamp = Math.floor(Date.now() / 1000).toString();
@@ -99,11 +99,11 @@ describe("WooCommerce Authentication", () => {
         siteUrl: "https://example.com",
         siteName: "Test Store",
         connectionId: "conn-123",
+        connectionSecret: "test-secret",
         status: "active",
         lastSyncAt: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        tenant: { id: "tenant-1", name: "Test", slug: "test", createdAt: new Date(), updatedAt: new Date() },
       } as AnyMock);
 
       const headers = generateAuthHeaders("conn-123", "test-secret");
