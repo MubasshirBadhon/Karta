@@ -1,0 +1,57 @@
+/* Karta Admin Styles */
+
+.karta-settings {
+    max-width: 800px;
+}
+
+.karta-connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    margin: 16px 0;
+    border-radius: 4px;
+    background: #f0f0f1;
+}
+
+.karta-connection-status.connected {
+    background: #edfaef;
+    border-left: 4px solid #00a32a;
+}
+
+.karta-connection-status.disconnected {
+    background: #fcf0f1;
+    border-left: 4px solid #d63638;
+}
+
+.karta-status-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.karta-connection-status.connected .karta-status-dot {
+    background: #00a32a;
+}
+
+.karta-connection-status.disconnected .karta-status-dot {
+    background: #d63638;
+}
+
+.karta-results {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: 4px;
+    background: #f0f0f1;
+}
+
+.karta-results.success {
+    background: #edfaef;
+    border-left: 4px solid #00a32a;
+}
+
+.karta-results.error {
+    background: #fcf0f1;
+    border-left: 4px solid #d63638;
+}

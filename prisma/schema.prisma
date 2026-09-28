@@ -1,0 +1,224 @@
+// Karta — Prisma Schema
+// Multi-tenant commerce foundation for the AI commerce platform.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Tenant ───────────────────────────────────────────────────
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products      Product[]
+  customers     Customer[]
+  conversations Conversation[]
+  orders        Order[]
+  connections   WooCommerceConnection[]
+  whatsAppConnections WhatsAppConnection[]
+
+  @@map("tenants")
+}
+
+// ─── WooCommerceConnection ───────────────────────────────────
+model WooCommerceConnection {
+  id           String   @id @default(cuid())
+  tenantId     String
+  siteUrl      String
+  siteName     String?
+  connectionId String   @unique
+  status       String   @default("active") // active | disconnected
+  lastSyncAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("woocommerce_connections")
+}
+
+// ─── WebhookEvent ────────────────────────────────────────────
+model WebhookEvent {
+  id             String   @id @default(cuid())
+  connectionId   String
+  eventType      String // product.created | product.updated | product.deleted
+  externalEventId String? // WooCommerce webhook event ID for deduplication
+  payload        Json
+  status         String   @default("pending") // pending | processed | failed
+  processedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  @@unique([connectionId, externalEventId])
+  @@index([connectionId])
+  @@map("webhook_events")
+}
+
+// ─── WhatsAppConnection ──────────────────────────────────────
+model WhatsAppConnection {
+  id                String   @id @default(cuid())
+  tenantId          String
+  phoneNumberId     String   @unique
+  businessAccountId String?
+  displayPhoneNumber String?
+  accessToken        String?  // Sensitive: server-side only, never exposed via API
+  status            String   @default("active") // active | disconnected
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("whatsapp_connections")
+}
+
+// ─── Product ─────────────────────────────────────────────────
+model Product {
+  id             String   @id @default(cuid())
+  tenantId       String
+  externalId     String?  // WooCommerce product ID
+  sku            String?
+  name           String
+  slug           String
+  description    String?  @db.Text
+  price          Decimal  @db.Decimal(10, 2)
+  compareAtPrice Decimal? @db.Decimal(10, 2)
+  stock          Int      @default(0)
+  image          String?
+  status         String   @default("active") // active | draft | archived
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id])
+  variants  ProductVariant[]
+  orderItems OrderItem[]
+
+  @@unique([tenantId, slug])
+  @@unique([tenantId, externalId])
+  @@index([tenantId])
+  @@map("products")
+}
+
+// ─── ProductVariant ──────────────────────────────────────────
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String
+  externalId String?  // WooCommerce variant ID
+  sku        String?
+  name       String
+  attributes Json     // { "color": "Black", "size": "L" }
+  price      Decimal  @db.Decimal(10, 2)
+  stock      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product  Product    @relation(fields: [productId], references: [id])
+  orderItems OrderItem[]
+
+  @@unique([productId, sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+// ─── Customer ────────────────────────────────────────────────
+model Customer {
+  id         String   @id @default(cuid())
+  tenantId   String
+  name       String?
+  phone      String?
+  email      String?
+  externalId String?  // WooCommerce customer ID
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  conversations Conversation[]
+  orders        Order[]
+
+  @@unique([tenantId, externalId])
+  @@index([tenantId])
+  @@map("customers")
+}
+
+// ─── Conversation ────────────────────────────────────────────
+model Conversation {
+  id         String   @id @default(cuid())
+  tenantId   String
+  customerId String?
+  channel    String   // "web" | "whatsapp"
+  externalId String?  // WhatsApp conversation ID
+  status     String   @default("active") // active | closed | archived
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  customer  Customer? @relation(fields: [customerId], references: [id])
+  messages  Message[]
+
+  @@unique([tenantId, externalId])
+  @@index([tenantId])
+  @@map("conversations")
+}
+
+// ─── Message ─────────────────────────────────────────────────
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  externalId     String?  // WhatsApp message ID
+  role           String   // "customer" | "assistant" | "system"
+  content        String   @db.Text
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ─── Order ───────────────────────────────────────────────────
+model Order {
+  id         String   @id @default(cuid())
+  tenantId   String
+  customerId String?
+  status     String   @default("pending") // pending | confirmed | shipped | delivered | cancelled
+  subtotal   Decimal  @db.Decimal(10, 2)
+  shipping   Decimal  @default(0) @db.Decimal(10, 2)
+  total      Decimal  @db.Decimal(10, 2)
+  currency   String   @default("BDT")
+  externalId String?  // WooCommerce order ID
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id])
+  customer Customer?   @relation(fields: [customerId], references: [id])
+  items    OrderItem[]
+
+  @@unique([tenantId, externalId])
+  @@index([tenantId])
+  @@map("orders")
+}
+
+// ─── OrderItem ───────────────────────────────────────────────
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  productId String?
+  variantId String?
+  quantity  Int
+  unitPrice Decimal @db.Decimal(10, 2)
+
+  order    Order           @relation(fields: [orderId], references: [id])
+  product  Product?        @relation(fields: [productId], references: [id])
+  variant  ProductVariant? @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
