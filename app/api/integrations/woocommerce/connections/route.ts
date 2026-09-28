@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createWooCommerceConnection, listConnections } from "@/lib/integrations/woocommerce/provisioning";
-import { prisma } from "@/lib/db/prisma";
+import { getOrCreateDemoTenant } from "@/lib/tenant/resolution";
 
 // ─── Request Validation ───────────────────────────────────────
 
@@ -15,8 +15,10 @@ const CreateConnectionSchema = z.object({
 /**
  * POST /api/integrations/woocommerce/connections
  *
- * Create a new WooCommerce connection for the authenticated tenant.
+ * Create a new WooCommerce connection for the demo tenant.
  * Returns the connection ID and secret (secret shown only once).
+ *
+ * Security: Tenant is resolved server-side. No client-supplied tenantId.
  */
 export async function POST(request: Request) {
   try {
@@ -30,15 +32,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get tenant from the first available tenant
-    // In production, this would come from authenticated session
-    const tenant = await prisma.tenant.findFirst({
-      orderBy: { createdAt: "asc" },
-    });
+    // Resolve demo tenant server-side (idempotent)
+    const tenant = await getOrCreateDemoTenant();
 
     if (!tenant) {
       return NextResponse.json(
-        { error: "No tenant found" },
+        { error: "Demo tenant not available" },
         { status: 500 }
       );
     }
@@ -75,17 +74,16 @@ export async function POST(request: Request) {
 /**
  * GET /api/integrations/woocommerce/connections
  *
- * List connections for the authenticated tenant.
+ * List connections for the demo tenant.
  */
 export async function GET() {
   try {
-    const tenant = await prisma.tenant.findFirst({
-      orderBy: { createdAt: "asc" },
-    });
+    // Resolve demo tenant server-side (idempotent)
+    const tenant = await getOrCreateDemoTenant();
 
     if (!tenant) {
       return NextResponse.json(
-        { error: "No tenant found" },
+        { error: "Demo tenant not available" },
         { status: 500 }
       );
     }

@@ -21,11 +21,11 @@ async function main() {
 
   // Create demo tenant
   const tenant = await prisma.tenant.upsert({
-    where: { slug: "demo-store" },
+    where: { slug: "karta-demo-store" },
     update: {},
     create: {
-      name: "Demo Store",
-      slug: "demo-store",
+      name: "Karta Demo Store",
+      slug: "karta-demo-store",
     },
   });
 
