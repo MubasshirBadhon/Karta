@@ -37,6 +37,7 @@ require_once KARTA_PLUGIN_DIR . 'includes/class-karta-settings.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-api.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-products.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-webhooks.php';
+require_once KARTA_PLUGIN_DIR . 'includes/class-karta-ajax.php';
 
 // Initialize plugin
 add_action('init', 'karta_init_plugin');
@@ -45,6 +46,7 @@ function karta_init_plugin() {
     Karta_Settings::init();
     Karta_Products::init();
     Karta_Webhooks::init();
+    Karta_Ajax::init();
 }
 
 // Add settings link to plugins page
