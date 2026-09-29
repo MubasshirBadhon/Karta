@@ -32,6 +32,8 @@ export default function WooCommerceIntegrationPage() {
   const [error, setError] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [copied, setCopied] = useState<string>("");
+  const [disconnecting, setDisconnecting] = useState<string>("");
+  const [showConfirm, setShowConfirm] = useState<string>("");
 
   useEffect(() => {
     fetchConnections();
@@ -89,6 +91,27 @@ export default function WooCommerceIntegrationPage() {
     navigator.clipboard.writeText(text);
     setCopied(field);
     setTimeout(() => setCopied(""), 2000);
+  };
+
+  const handleDisconnect = async (connectionId: string) => {
+    setDisconnecting(connectionId);
+    try {
+      const response = await fetch(
+        `/api/integrations/woocommerce/connections/${connectionId}`,
+        { method: "DELETE" }
+      );
+      const data = await response.json();
+      if (data.success) {
+        setConnections((prev) => prev.filter((c) => c.connectionId !== connectionId));
+        setShowConfirm("");
+      } else {
+        setError(data.error || "Failed to disconnect");
+      }
+    } catch {
+      setError("Failed to disconnect");
+    } finally {
+      setDisconnecting("");
+    }
   };
 
   const maskSecret = (secret: string) => {
@@ -282,6 +305,41 @@ export default function WooCommerceIntegrationPage() {
                       Last sync: {new Date(conn.lastSyncAt).toLocaleString()}
                     </div>
                   )}
+                  <div className="mt-3">
+                    {showConfirm === conn.connectionId ? (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <p className="text-sm text-red-700 mb-2">
+                          Disconnect this WooCommerce store from Karta?
+                          <br />
+                          <span className="text-xs text-red-500">
+                            This removes the Karta connection only. WooCommerce products and other Karta data will not be deleted.
+                          </span>
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleDisconnect(conn.connectionId)}
+                            disabled={disconnecting === conn.connectionId}
+                            className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                          >
+                            {disconnecting === conn.connectionId ? "Disconnecting..." : "Confirm Disconnect"}
+                          </button>
+                          <button
+                            onClick={() => setShowConfirm("")}
+                            className="px-3 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setShowConfirm(conn.connectionId)}
+                        className="px-3 py-1 text-xs bg-red-50 text-red-600 rounded hover:bg-red-100 border border-red-200"
+                      >
+                        Disconnect
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
