@@ -24,9 +24,7 @@ export async function GET() {
     if (modelsResponse.ok) {
       const modelsData = await modelsResponse.json();
       diag.availableModels = (modelsData.data || [])
-        .map((m: { id: string }) => m.id)
-        .filter((id: string) => id.includes("llama") || id.includes("mixtral") || id.includes("gemma"))
-        .slice(0, 20);
+        .map((m: { id: string }) => m.id);
     } else {
       diag.modelsListStatus = modelsResponse.status;
     }
