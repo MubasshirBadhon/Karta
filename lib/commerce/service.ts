@@ -50,7 +50,7 @@ export interface VariantInfo {
 export interface StockInfo {
   productId: string;
   variantId?: string;
-  stock: number;
+  stock: number | null;
   available: boolean;
 }
 
@@ -206,6 +206,11 @@ export async function getVariant(
 
 /**
  * Check stock for a product or specific variant.
+ *
+ * Stock handling:
+ * - If stock is null/undefined: stock is not managed, consider available if status is "instock"
+ * - If stock is a number: available if stock > 0
+ * - For variable products: sum all variant stock (null variants are skipped)
  */
 export async function checkStock(
   tenantId: string,
@@ -222,11 +227,29 @@ export async function checkStock(
       },
     });
 
+    if (!variant) {
+      return { productId, variantId, stock: 0, available: false };
+    }
+
+    // If stock is null, check product status
+    if (variant.stock === null) {
+      const product = await prisma.product.findFirst({
+        where: { id: variant.productId },
+        select: { status: true },
+      });
+      return {
+        productId,
+        variantId,
+        stock: null,
+        available: product?.status === "active",
+      };
+    }
+
     return {
       productId,
       variantId,
-      stock: variant?.stock ?? 0,
-      available: (variant?.stock ?? 0) > 0,
+      stock: variant.stock,
+      available: variant.stock > 0,
     };
   }
 
@@ -246,11 +269,34 @@ export async function checkStock(
 
   // If product has variants, sum all variant stock
   if (product.variants.length > 0) {
-    const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
+    // Sum only non-null variant stock values
+    const validStocks = product.variants
+      .map((v) => v.stock)
+      .filter((s): s is number => s !== null && s !== undefined);
+
+    if (validStocks.length === 0) {
+      // All variants have null stock - check product status
+      return {
+        productId,
+        stock: null,
+        available: product.status === "active",
+      };
+    }
+
+    const totalStock = validStocks.reduce((sum, s) => sum + s, 0);
     return {
       productId,
       stock: totalStock,
       available: totalStock > 0,
+    };
+  }
+
+  // Simple product: if stock is null, check status
+  if (product.stock === null) {
+    return {
+      productId,
+      stock: null,
+      available: product.status === "active",
     };
   }
 

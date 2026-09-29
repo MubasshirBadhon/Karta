@@ -18,8 +18,9 @@ const VariationSchema = z.object({
   price: z.number(),
   regularPrice: z.number().optional(),
   salePrice: z.number().nullable().optional(),
-  stockQuantity: z.number().int(),
+  stockQuantity: z.number().int().nullable(),
   stockStatus: z.string(),
+  manageStock: z.boolean().optional(),
   image: z.string().nullable().optional(),
   attributes: z.record(z.string()).default({}),
 });
@@ -34,8 +35,9 @@ const ProductSchema = z.object({
   price: z.number().nonnegative(),
   regularPrice: z.number().nonnegative().optional(),
   salePrice: z.number().nonnegative().nullable().optional(),
-  stockQuantity: z.number().int().default(0),
+  stockQuantity: z.number().int().nullable().default(null),
   stockStatus: z.string().default("instock"),
+  manageStock: z.boolean().optional(),
   image: z.string().nullable().optional(),
   type: z.enum(["simple", "variable"]),
   variations: z.array(VariationSchema).default([]),
@@ -52,7 +54,7 @@ export interface NormalizedVariation {
   sku: string | null;
   name: string;
   price: number;
-  stock: number;
+  stock: number | null;
   attributes: Record<string, string>;
 }
 
@@ -64,7 +66,7 @@ export interface NormalizedProduct {
   description: string | null;
   price: number;
   compareAtPrice: number | null;
-  stock: number;
+  stock: number | null;
   image: string | null;
   status: string;
   type: "simple" | "variable";
@@ -86,7 +88,7 @@ export interface SyncResult {
 export function normalizeProduct(product: z.infer<typeof ProductSchema>): NormalizedProduct {
   const slug = product.slug || product.name.toLowerCase().replace(/\s+/g, "-");
 
-  // Determine status from stock
+  // Determine status from stock status
   let status = "active";
   if (product.stockStatus === "outofstock") {
     status = "active"; // Still active, just out of stock
@@ -105,10 +107,19 @@ export function normalizeProduct(product: z.infer<typeof ProductSchema>): Normal
     compareAtPrice = product.regularPrice;
   }
 
-  // For variable products, sum all variation stock
-  let stock = product.stockQuantity;
+  // Handle stock quantity:
+  // - If manageStock is false, stockQuantity may be null (stock not managed)
+  // - If manageStock is true, stockQuantity should be a number
+  // - For variable products, sum all variation stock
+  let stock: number | null = product.stockQuantity;
   if (product.type === "variable") {
-    stock = product.variations.reduce((sum, v) => sum + v.stockQuantity, 0);
+    // For variable products, sum variation stock (only non-null values)
+    const variationStocks = product.variations.map((v) => v.stockQuantity).filter((s): s is number => s !== null);
+    if (variationStocks.length > 0) {
+      stock = variationStocks.reduce((sum, s) => sum + s, 0);
+    } else {
+      stock = null; // No variation stock data
+    }
   }
 
   return {

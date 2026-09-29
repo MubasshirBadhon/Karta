@@ -134,6 +134,20 @@ class Karta_Products {
         $image_id = $product->get_image_id();
         $image_url = $image_id ? wp_get_attachment_url($image_id) : null;
 
+        // DIAGNOSTIC: Log stock data for debugging
+        error_log(sprintf(
+            '[KARTA STOCK DIAG] Simple product ID=%d | get_stock_quantity=%s | get_stock_status=%s | get_manage_stock=%s',
+            $product->get_id(),
+            var_export($product->get_stock_quantity(), true),
+            $product->get_stock_status(),
+            var_export($product->get_manage_stock(), true)
+        ));
+
+        // FIX: Use ?? (null coalescing) instead of ?: (Elvis) to preserve null
+        // When manage_stock=false, get_stock_quantity() returns null (not 0)
+        // This null must be preserved to indicate "stock not managed"
+        $stockQuantity = $product->get_stock_quantity() ?? null;
+
         $data = [
             'externalId' => (string) $product->get_id(),
             'sku' => $product->get_sku() ?: null,
@@ -144,11 +158,21 @@ class Karta_Products {
             'price' => (float) $product->get_price(),
             'regularPrice' => (float) $product->get_regular_price(),
             'salePrice' => $product->get_sale_price() ? (float) $product->get_sale_price() : null,
-            'stockQuantity' => $product->get_stock_quantity() ?: 0,
+            'stockQuantity' => $stockQuantity,
             'stockStatus' => $product->get_stock_status(),
+            'manageStock' => $product->get_manage_stock(),
             'image' => $image_url,
             'type' => 'simple',
         ];
+
+        // DIAGNOSTIC: Log the payload being sent
+        error_log(sprintf(
+            '[KARTA STOCK DIAG] Payload for product ID=%d: stockQuantity=%s, stockStatus=%s, manageStock=%s',
+            $product->get_id(),
+            var_export($data['stockQuantity'], true),
+            $data['stockStatus'],
+            var_export($data['manageStock'], true)
+        ));
 
         return $data;
     }
@@ -181,6 +205,21 @@ class Karta_Products {
                 }
             }
 
+            // DIAGNOSTIC: Log variation stock data
+            error_log(sprintf(
+                '[KARTA STOCK DIAG] Variation ID=%d | get_stock_quantity=%s | get_stock_status=%s | get_manage_stock=%s',
+                $variation_id,
+                var_export($variation->get_stock_quantity(), true),
+                $variation->get_stock_status(),
+                var_export($variation->get_manage_stock(), true)
+            ));
+
+            // Preserve null when manage_stock is false
+            $stockQuantity = $variation->get_stock_quantity();
+            if ($stockQuantity === null) {
+                $stockQuantity = null; // Keep null to indicate "stock not managed"
+            }
+
             $variations[] = [
                 'externalId' => (string) $variation_id,
                 'sku' => $variation->get_sku() ?: null,
@@ -188,8 +227,9 @@ class Karta_Products {
                 'price' => (float) $variation->get_price(),
                 'regularPrice' => (float) $variation->get_regular_price(),
                 'salePrice' => $variation->get_sale_price() ? (float) $variation->get_sale_price() : null,
-                'stockQuantity' => $variation->get_stock_quantity() ?: 0,
+                'stockQuantity' => $stockQuantity,
                 'stockStatus' => $variation->get_stock_status(),
+                'manageStock' => $variation->get_manage_stock(),
                 'image' => $variation_image_url,
                 'attributes' => $attributes,
             ];

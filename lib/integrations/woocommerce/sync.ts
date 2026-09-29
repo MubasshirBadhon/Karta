@@ -75,7 +75,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         description: product.description,
         price: product.price,
         compareAtPrice: product.compareAtPrice,
-        stock: product.stock,
+        stock: product.stock ?? 0,
         image: product.image,
         status: product.status,
       },
@@ -97,7 +97,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         description: product.description,
         price: product.price,
         compareAtPrice: product.compareAtPrice,
-        stock: product.stock,
+        stock: product.stock ?? 0,
         image: product.image,
         status: product.status,
       },
@@ -114,7 +114,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
             name: variant.name,
             attributes: variant.attributes,
             price: variant.price,
-            stock: variant.stock,
+            stock: variant.stock ?? 0,
           },
         });
       }
@@ -146,7 +146,7 @@ async function syncVariants(
           sku: variation.sku,
           attributes: variation.attributes,
           price: variation.price,
-          stock: variation.stock,
+          stock: variation.stock ?? 0,
         },
       });
     } else {
@@ -158,7 +158,7 @@ async function syncVariants(
           name: variation.name,
           attributes: variation.attributes,
           price: variation.price,
-          stock: variation.stock,
+          stock: variation.stock ?? 0,
         },
       });
     }
