@@ -63,7 +63,7 @@ describe("WhatsApp Processor", () => {
     it("should persist inbound message", async () => {
       await processWhatsAppMessage(mockMessage, "1234567890");
 
-      expect(saveMessage).toHaveBeenCalledWith("conv-123", "customer", "Do you have black shoes?");
+      expect(saveMessage).toHaveBeenCalledWith("conv-123", "user", "Do you have black shoes?");
     });
 
     it("should persist outbound message", async () => {

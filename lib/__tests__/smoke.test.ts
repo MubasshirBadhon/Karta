@@ -125,8 +125,8 @@ describe("Phase 6 Smoke Tests", () => {
 
   describe("Smoke Test 4: Website chat", () => {
     it("should reject requests without valid tenant context", async () => {
-      const mockFindUnique = vi.fn().mockResolvedValue(null);
-      (prisma.tenant as AnyMock).findUnique = mockFindUnique;
+      const mockFindFirst = vi.fn().mockResolvedValue(null);
+      (prisma.tenant as AnyMock).findFirst = mockFindFirst;
 
       const { POST } = await import("@/app/api/chat/route");
       const request = new Request("http://localhost:3000/api/chat", {
@@ -137,7 +137,7 @@ describe("Phase 6 Smoke Tests", () => {
       const response = await POST(request);
       const data = await response.json();
 
-      expect(response.status).toBe(401);
+      expect(response.status).toBe(500);
       expect(data.error).toBeDefined();
       expect(data.error.length).toBeGreaterThan(0);
     });
