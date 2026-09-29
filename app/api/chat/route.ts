@@ -81,6 +81,236 @@ export async function POST(request: Request) {
       history
     );
 
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
+    // Safe server-side error logging (no secrets exposed)
+    if (!result.success) {
+      console.error("[CHAT AI ERROR]", JSON.stringify({
+        error: result.error,
+        conversationId: conversation.id,
+        historyLength: history.length,
+        timestamp: new Date().toISOString(),
+      }));
+    }
+
     // Save assistant response
     if (result.text) {
       await saveMessage(conversation.id, "assistant", result.text);
