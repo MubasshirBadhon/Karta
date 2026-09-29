@@ -12,8 +12,7 @@
 - All WhatsApp API calls must originate from server-side handlers.
 
 ### 3. WordPress Must Never Receive Groq Credentials
-- The WordPress plugin communicates with Karta Cloud via the REST API using per-connection secrets.
-- Each WooCommerce connection has its own unique secret generated server-side.
+- The WordPress plugin communicates with Karta Cloud via the REST API using `WORDPRESS_CONNECT_SECRET`.
 - Groq API keys are never sent to or stored in WordPress.
 - The WordPress plugin only sends product data and receives AI-generated responses.
 

@@ -10,7 +10,7 @@ import { AIProvider, AIRequest, AIResponse } from "./types";
 export class GroqProvider implements AIProvider {
   private apiKey: string;
   private baseUrl = "https://api.groq.com/openai/v1";
-  private defaultModel = "llama-3.3-70b-versatile";
+  private defaultModel = "openai/gpt-oss-120b";
 
   constructor() {
     const apiKey = process.env.GROQ_API_KEY;

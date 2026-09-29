@@ -146,7 +146,7 @@ async function syncVariants(
           sku: variation.sku,
           attributes: variation.attributes,
           price: variation.price,
-          stock: variation.stock ?? 0,
+          stock: variation.stock,
         },
       });
     } else {
@@ -158,7 +158,7 @@ async function syncVariants(
           name: variation.name,
           attributes: variation.attributes,
           price: variation.price,
-          stock: variation.stock ?? 0,
+          stock: variation.stock,
         },
       });
     }

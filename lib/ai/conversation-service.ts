@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/db/prisma";
-import type { AIMessage } from "@/lib/ai/types";
 
 /**
  * Conversation Service
@@ -19,23 +18,23 @@ export interface ConversationInfo {
 
 export interface MessageInfo {
   id: string;
+  conversationId: string;
   role: string;
   content: string;
   createdAt: Date;
 }
 
 /**
- * Get or create a conversation for a tenant on the web channel.
+ * Get or create a conversation for a tenant on a specific channel.
  */
 export async function getOrCreateConversation(
   tenantId: string,
-  customerId?: string | null
+  channel: string
 ): Promise<ConversationInfo> {
-  // Look for an active conversation for this tenant
   const existing = await prisma.conversation.findFirst({
     where: {
       tenantId,
-      channel: "web",
+      channel,
       status: "active",
     },
     orderBy: { updatedAt: "desc" },
@@ -45,12 +44,10 @@ export async function getOrCreateConversation(
     return existing;
   }
 
-  // Create a new conversation
   const conversation = await prisma.conversation.create({
     data: {
       tenantId,
-      customerId: customerId || null,
-      channel: "web",
+      channel,
       status: "active",
     },
   });
@@ -64,16 +61,15 @@ export async function getOrCreateConversation(
 export async function getConversationHistory(
   conversationId: string,
   limit = 20
-): Promise<AIMessage[]> {
+): Promise<Array<{ role: string; content: string }>> {
   const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "desc" },
     take: limit,
   });
 
-  // Reverse to get chronological order and map to AIMessage format
   return messages.reverse().map((m) => ({
-    role: m.role as "user" | "assistant" | "system",
+    role: m.role,
     content: m.content,
   }));
 }
@@ -81,35 +77,27 @@ export async function getConversationHistory(
 /**
  * Save a message to the conversation.
  */
-export async function saveMessage(
+export function saveMessage(
   conversationId: string,
-  role: "user" | "assistant" | "system" | "customer",
+  role: "user" | "assistant" | "system",
   content: string
 ): Promise<MessageInfo> {
-  const message = await prisma.message.create({
+  return prisma.message.create({
     data: {
       conversationId,
       role,
       content,
     },
   });
-
-  // Update conversation timestamp
-  await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { updatedAt: new Date() },
-  });
-
-  return message;
 }
 
 /**
  * Get a conversation by ID.
  */
-export async function getConversation(
+export function getConversation(
   conversationId: string
 ): Promise<ConversationInfo | null> {
   return prisma.conversation.findUnique({
-    where: { id: conversationId },
+    where: { id: conversationId,
   });
 }

@@ -11,16 +11,7 @@ interface ChatResponse {
   success: boolean;
   conversationId: string;
   response: string;
-  error?: string;
 }
-
-// Demo site token - public identifier for the Karta Demo Store
-// This is NOT a secret - it's a public token that maps to the demo tenant
-// It is safe to expose in browser code (like a public API key)
-const DEMO_SITE_TOKEN = process.env.NEXT_PUBLIC_DEMO_SITE_TOKEN || "";
-
-// Check if demo is configured
-const isDemoConfigured = DEMO_SITE_TOKEN.length > 0;
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
@@ -31,8 +22,7 @@ export default function ChatPage() {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string>("");
-  const [error, setError] = useState<string>("");
+  const [conversationId, setConversationId] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -44,7 +34,6 @@ export default function ChatPage() {
 
     const userMessage = input.trim();
     setInput("");
-    setError("");
     setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setIsLoading(true);
 
@@ -53,8 +42,8 @@ export default function ChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          conversationId: conversationId || undefined,
           message: userMessage,
+          conversationId: conversationId || undefined,
         }),
       });
 
@@ -67,10 +56,16 @@ export default function ChatPage() {
           { role: "assistant", content: data.response },
         ]);
       } else {
-        setError(data.error || data.response || "Something went wrong. Please try again.");
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: "Sorry, something went wrong. Please try again." },
+        ]);
       }
     } catch {
-      setError("Failed to connect. Please check your connection and try again.");
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Failed to connect. Please check your connection and try again." },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -82,60 +77,6 @@ export default function ChatPage() {
       sendMessage();
     }
   };
-
-  // Show configuration error if demo is not configured
-  if (!isDemoConfigured) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8">
-        <div className="max-w-md text-center">
-          <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-yellow-600 text-2xl">⚠️</span>
-          </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Demo Not Configured</h1>
-          <p className="text-gray-600 mb-4">
-            Demo site token is not configured.
-          </p>
-          <p className="text-sm text-gray-500">
-            See <code className="bg-gray-100 px-1 rounded">docs/demo-setup.md</code> for setup instructions.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  // Show configuration error if demo is not configured
-  if (!isDemoConfigured) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8">
-        <div className="max-w-md text-center">
-          <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-yellow-600 text-2xl">⚠️</span>
-          </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Demo Not Configured</h1>
-          <p className="text-gray-600 mb-4">
-            The demo site token is not configured. Please set <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_DEMO_SITE_TOKEN</code> in your environment.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  // Show configuration error if demo is not configured
-  if (!isDemoConfigured) {
-    return (
-      <main className="flex min-h-screen flex-col items-center justify-center p-8">
-        <div className="max-w-md text-center">
-          <div className="w-16 h-16 rounded-full bg-yellow-100 flex items-center justify-center mx-auto mb-4">
-            <span className="text-yellow-600 text-2xl">⚠️</span>
-          </div>
-          <h1 className="text-xl font-semibold text-gray-900 mb-2">Demo Not Configured</h1>
-          <p className="text-gray-600 mb-4">
-            The demo site token is not configured. Please set <code className="bg-gray-100 px-1 rounded">NEXT_PUBLIC_DEMO_SITE_TOKEN</code> in your environment.
-          </p>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex flex-col h-screen max-w-2xl mx-auto p-4">
@@ -177,14 +118,6 @@ export default function ChatPage() {
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.1s]" />
                 <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce [animation-delay:0.2s]" />
               </div>
-            </div>
-          </div>
-        )}
-
-        {error && (
-          <div className="flex justify-center">
-            <div className="bg-red-50 text-red-600 rounded-lg px-4 py-2 text-sm">
-              {error}
             </div>
           </div>
         )}
