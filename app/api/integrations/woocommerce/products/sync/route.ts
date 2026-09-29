@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authenticateWordPressRequest } from "@/lib/integrations/woocommerce/auth";
 import { validateSyncRequest } from "@/lib/integrations/woocommerce/normalizer";
-import { syncProducts } from "@/lib/integrations/woocommerce/sync";
+import { syncProducts, reconcileProducts } from "@/lib/integrations/woocommerce/sync";
 
 export async function POST(request: Request) {
   try {
@@ -52,12 +52,18 @@ export async function POST(request: Request) {
     // Sync products
     const result = await syncProducts(auth.tenantId!, validation.products!);
 
+    // Reconcile: archive products not in this sync batch
+    const syncedIds = validation.products!.map((p) => p.externalId);
+    const reconciliation = await reconcileProducts(auth.tenantId!, syncedIds);
+
     // DIAGNOSTIC: Log sync result
     console.log("[STOCK DIAG] Sync result:", result);
+    console.log("[STOCK DIAG] Reconciliation:", reconciliation);
 
     return NextResponse.json({
       success: true,
       ...result,
+      archived: reconciliation.archived,
     });
   } catch (error) {
     console.error("[STOCK DIAG] Error:", error);

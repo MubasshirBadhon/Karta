@@ -75,7 +75,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         description: product.description,
         price: product.price,
         compareAtPrice: product.compareAtPrice,
-        stock: product.stock ?? 0,
+        stock: product.stock,
         image: product.image,
         status: product.status,
       },
@@ -84,6 +84,11 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
     // Sync variants
     if (product.type === "variable" && product.variations.length > 0) {
       await syncVariants(existing.id, product.variations);
+    } else if (product.type === "simple") {
+      // Remove variants if product type changed from variable to simple
+      await prisma.productVariant.deleteMany({
+        where: { productId: existing.id },
+      });
     }
   } else {
     // Create new product
@@ -97,7 +102,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         description: product.description,
         price: product.price,
         compareAtPrice: product.compareAtPrice,
-        stock: product.stock ?? 0,
+        stock: product.stock,
         image: product.image,
         status: product.status,
       },
@@ -114,7 +119,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
             name: variant.name,
             attributes: variant.attributes,
             price: variant.price,
-            stock: variant.stock ?? 0,
+            stock: variant.stock,
           },
         });
       }
@@ -192,4 +197,25 @@ export async function softDeleteProduct(
   });
 
   return true;
+}
+
+/**
+ * Reconcile products after a full sync.
+ * Archives any products in the database that are NOT in the incoming sync batch.
+ * This handles products deleted from WooCommerce.
+ */
+export async function reconcileProducts(
+  tenantId: string,
+  syncedExternalIds: string[]
+): Promise<{ archived: number }> {
+  const result = await prisma.product.updateMany({
+    where: {
+      tenantId,
+      externalId: { notIn: syncedExternalIds },
+      status: { not: "archived" },
+    },
+    data: { status: "archived" },
+  });
+
+  return { archived: result.count };
 }

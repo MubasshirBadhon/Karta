@@ -49,6 +49,51 @@ function karta_init_plugin() {
     Karta_Ajax::init();
 }
 
+// Register REST API endpoint for WooCommerce webhooks
+add_action('rest_api_init', 'karta_register_rest_routes');
+
+function karta_register_rest_routes() {
+    register_rest_route('karta/v1', '/webhook', [
+        'methods' => 'POST',
+        'callback' => 'karta_handle_webhook',
+        'permission_callback' => '__return_true', // Auth handled inside via HMAC
+    ]);
+}
+
+function karta_handle_webhook($request) {
+    return Karta_Webhooks::process_webhook($request);
+}
+
+// Register REST API endpoint for WooCommerce webhooks
+add_action('rest_api_init', 'karta_register_rest_routes');
+
+function karta_register_rest_routes() {
+    register_rest_route('karta/v1', '/webhook', [
+        'methods' => 'POST',
+        'callback' => 'karta_handle_webhook',
+        'permission_callback' => '__return_true', // Auth handled inside via HMAC
+    ]);
+}
+
+function karta_handle_webhook($request) {
+    return Karta_Webhooks::process_webhook($request);
+}
+
+// Register REST API endpoint for WooCommerce webhooks
+add_action('rest_api_init', 'karta_register_rest_routes');
+
+function karta_register_rest_routes() {
+    register_rest_route('karta/v1', '/webhook', [
+        'methods' => 'POST',
+        'callback' => 'karta_handle_webhook',
+        'permission_callback' => '__return_true', // Auth handled inside via HMAC
+    ]);
+}
+
+function karta_handle_webhook($request) {
+    return Karta_Webhooks::process_webhook($request);
+}
+
 // Add settings link to plugins page
 add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'karta_add_settings_link');
 

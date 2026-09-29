@@ -24,7 +24,7 @@ const SearchProductsInput = z.object({
   query: z.string().optional().describe("Search term for product name or description"),
   minPrice: z.number().optional().describe("Minimum price filter"),
   maxPrice: z.number().optional().describe("Maximum price filter"),
-  limit: z.number().min(1).max(20).default(10).describe("Maximum results to return"),
+  limit: z.number().min(1).max(20).default(20).describe("Maximum results to return"),
 });
 
 const GetProductInput = z.object({
@@ -61,7 +61,7 @@ export const commerceTools: CommerceTool[] = [
         query: { type: "string", description: "Search term for product name or description" },
         minPrice: { type: "number", description: "Minimum price" },
         maxPrice: { type: "number", description: "Maximum price" },
-        limit: { type: "number", description: "Max results (1-20)", default: 10 },
+        limit: { type: "number", description: "Max results (1-20)", default: 20 },
       },
     },
     execute: async (tenantId: string, input: unknown) => {
