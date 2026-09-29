@@ -15,6 +15,7 @@ vi.mock("@/lib/db/prisma", () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      deleteMany: vi.fn(),
     },
   },
 }));
@@ -35,6 +36,9 @@ describe("WooCommerce Sync", () => {
     compareAtPrice: null,
     stock: 10,
     image: null,
+    images: null,
+    category: null,
+    productUrl: null,
     status: "active",
     type: "simple",
     variations: [],

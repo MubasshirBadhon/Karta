@@ -128,6 +128,41 @@ class Karta_Products {
     }
 
     /**
+     * Get WooCommerce product data shared by simple and variable products:
+     * canonical permalink (never constructed manually), gallery image URLs,
+     * and the primary category name.
+     */
+    private static function get_product_common_data($product) {
+        // Canonical WooCommerce product permalink (WooCommerce provides it)
+        $product_url = method_exists($product, 'get_permalink') ? $product->get_permalink() : null;
+
+        // Gallery (additional) image URLs from WooCommerce/WordPress attachments
+        $images = [];
+        $gallery_ids = method_exists($product, 'get_gallery_image_ids') ? $product->get_gallery_image_ids() : [];
+        if (!empty($gallery_ids) && is_array($gallery_ids)) {
+            foreach ($gallery_ids as $gallery_id) {
+                $gallery_url = wp_get_attachment_url($gallery_id);
+                if ($gallery_url) {
+                    $images[] = $gallery_url;
+                }
+            }
+        }
+
+        // Primary category name
+        $category = null;
+        $terms = wp_get_post_terms($product->get_id(), 'product_cat');
+        if (!empty($terms) && !is_wp_error($terms)) {
+            $category = $terms[0]->name;
+        }
+
+        return [
+            'productUrl' => $product_url ?: null,
+            'images' => $images,
+            'category' => $category,
+        ];
+    }
+
+    /**
      * Normalize a simple product.
      */
     private static function normalize_simple_product($product) {
@@ -164,6 +199,8 @@ class Karta_Products {
             'image' => $image_url,
             'type' => 'simple',
         ];
+
+        $data = array_merge($data, self::get_product_common_data($product));
 
         // DIAGNOSTIC: Log the payload being sent
         error_log(sprintf(
@@ -251,6 +288,8 @@ class Karta_Products {
             'type' => 'variable',
             'variations' => $variations,
         ];
+
+        $data = array_merge($data, self::get_product_common_data($product));
 
         return $data;
     }

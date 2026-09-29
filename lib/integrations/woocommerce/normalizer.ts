@@ -39,6 +39,9 @@ const ProductSchema = z.object({
   stockStatus: z.string().default("instock"),
   manageStock: z.boolean().optional(),
   image: z.string().nullable().optional(),
+  images: z.array(z.string()).nullable().optional(),
+  category: z.string().nullable().optional(),
+  productUrl: z.string().nullable().optional(),
   type: z.enum(["simple", "variable"]),
   variations: z.array(VariationSchema).default([]),
 });
@@ -68,6 +71,12 @@ export interface NormalizedProduct {
   compareAtPrice: number | null;
   stock: number | null;
   image: string | null;
+  // The three fields below distinguish "not provided" (undefined, e.g. an
+  // older plugin payload) from "explicitly empty" (null) — sync must not
+  // wipe existing values when the payload omits them.
+  images: string[] | null | undefined;
+  category: string | null | undefined;
+  productUrl: string | null | undefined;
   status: string;
   type: "simple" | "variable";
   variations: NormalizedVariation[];
@@ -132,6 +141,15 @@ export function normalizeProduct(product: z.infer<typeof ProductSchema>): Normal
     compareAtPrice,
     stock,
     image: product.image || null,
+    images:
+      product.images === undefined
+        ? undefined
+        : product.images
+          ? product.images.filter(Boolean)
+          : null,
+    category: product.category === undefined ? undefined : product.category || null,
+    // Canonical WooCommerce permalink — never constructed from site URL + name
+    productUrl: product.productUrl === undefined ? undefined : product.productUrl || null,
     status,
     type: product.type,
     variations: product.variations.map((v) => ({

@@ -1,0 +1,482 @@
+/**
+ * Karta AI — Floating Chat Widget
+ *
+ * All selectors are namespaced under #karta-chat-root with "karta-" class
+ * prefixes so they cannot leak into or break the merchant/WooCommerce theme.
+ * The widget root is position:fixed with a very high z-index and does not
+ * affect page flow, checkout, cart, or product UI.
+ */
+
+#karta-chat-root {
+  --karta-primary: #6366f1;
+  --karta-primary-dark: #4f46e5;
+  --karta-surface: #ffffff;
+  --karta-text: #111827;
+  --karta-text-muted: #6b7280;
+  --karta-border: #e5e7eb;
+  --karta-bubble-bot: #f3f4f6;
+  --karta-z: 2147483000;
+
+  all: initial;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ─── Launcher button ────────────────────────────────────────── */
+
+#karta-chat-root .karta-launcher {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: var(--karta-z);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--karta-primary);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+#karta-chat-root .karta-launcher:hover {
+  background: var(--karta-primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+}
+
+#karta-chat-root .karta-launcher:focus-visible {
+  outline: 2px solid var(--karta-primary-dark);
+  outline-offset: 2px;
+}
+
+#karta-chat-root .karta-launcher-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--karta-primary);
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Compact circular launcher on small screens */
+@media (max-width: 480px) {
+  #karta-chat-root .karta-launcher {
+    padding: 14px;
+    right: 16px;
+    bottom: 16px;
+  }
+
+  #karta-chat-root .karta-launcher-label {
+    display: none;
+  }
+}
+
+/* ─── Chat popup ─────────────────────────────────────────────── */
+
+#karta-chat-root .karta-popup {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  z-index: var(--karta-z);
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  max-width: calc(100vw - 32px);
+  height: 520px;
+  max-height: calc(100vh - 120px);
+  max-height: calc(100dvh - 120px);
+  border-radius: 16px;
+  background: var(--karta-surface);
+  box-shadow: 0 12px 40px rgba(17, 24, 39, 0.22);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(12px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+#karta-chat-root .karta-popup.karta-open {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+/* Full-viewport popup on mobile */
+@media (max-width: 480px) {
+  #karta-chat-root .karta-popup {
+    right: 8px;
+    left: 8px;
+    bottom: 80px;
+    width: auto;
+    height: calc(100vh - 100px);
+    height: calc(100dvh - 100px);
+  }
+}
+
+/* ─── Popup header ───────────────────────────────────────────── */
+
+#karta-chat-root .karta-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--karta-primary);
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+#karta-chat-root .karta-header-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--karta-primary);
+  font-size: 18px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+#karta-chat-root .karta-header-title {
+  flex: 1;
+  min-width: 0;
+}
+
+#karta-chat-root .karta-header-name {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+#karta-chat-root .karta-header-subtitle {
+  margin: 2px 0 0;
+  font-size: 11px;
+  opacity: 0.85;
+  line-height: 1.2;
+}
+
+#karta-chat-root .karta-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+#karta-chat-root .karta-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+#karta-chat-root .karta-close:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+}
+
+/* ─── Messages ───────────────────────────────────────────────── */
+
+#karta-chat-root .karta-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--karta-surface);
+  -webkit-overflow-scrolling: touch;
+}
+
+#karta-chat-root .karta-msg-row {
+  display: flex;
+}
+
+#karta-chat-root .karta-msg-row.karta-user {
+  justify-content: flex-end;
+}
+
+#karta-chat-root .karta-msg-row.karta-bot {
+  justify-content: flex-start;
+}
+
+#karta-chat-root .karta-msg {
+  max-width: 82%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+#karta-chat-root .karta-user .karta-msg {
+  background: var(--karta-primary);
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+#karta-chat-root .karta-bot .karta-msg {
+  background: var(--karta-bubble-bot);
+  color: var(--karta-text);
+  border-bottom-left-radius: 4px;
+}
+
+#karta-chat-root .karta-msg.karta-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* Loading state */
+#karta-chat-root .karta-typing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--karta-bubble-bot);
+  color: var(--karta-text-muted);
+  padding: 9px 13px;
+  border-radius: 12px;
+  border-bottom-left-radius: 4px;
+  font-size: 14px;
+}
+
+#karta-chat-root .karta-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+#karta-chat-root .karta-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--karta-text-muted);
+  animation: karta-bounce 1.2s infinite ease-in-out;
+}
+
+#karta-chat-root .karta-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+#karta-chat-root .karta-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes karta-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* ─── Input area ─────────────────────────────────────────────── */
+
+#karta-chat-root .karta-footer {
+  padding: 12px 16px 10px;
+  border-top: 1px solid var(--karta-border);
+  background: var(--karta-surface);
+  flex-shrink: 0;
+}
+
+#karta-chat-root .karta-input-row {
+  display: flex;
+  gap: 8px;
+}
+
+#karta-chat-root .karta-input {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--karta-border);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--karta-text);
+  background: var(--karta-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+#karta-chat-root .karta-input::placeholder {
+  color: var(--karta-text-muted);
+}
+
+#karta-chat-root .karta-input:focus {
+  outline: none;
+  border-color: var(--karta-primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+#karta-chat-root .karta-input:disabled {
+  background: var(--karta-bubble-bot);
+  cursor: not-allowed;
+}
+
+#karta-chat-root .karta-send {
+  padding: 9px 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--karta-primary);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+#karta-chat-root .karta-send:hover:not(:disabled) {
+  background: var(--karta-primary-dark);
+}
+
+#karta-chat-root .karta-send:focus-visible {
+  outline: 2px solid var(--karta-primary-dark);
+  outline-offset: 1px;
+}
+
+#karta-chat-root .karta-send:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#karta-chat-root .karta-powered {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 11px;
+  color: var(--karta-text-muted);
+}
+
+/* ─── Product cards ──────────────────────────────────────────── */
+
+#karta-chat-root .karta-card {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid var(--karta-border);
+  border-radius: 12px;
+  background: var(--karta-surface);
+  box-sizing: border-box;
+}
+
+#karta-chat-root .karta-card-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: var(--karta-bubble-bot);
+  flex-shrink: 0;
+}
+
+#karta-chat-root .karta-card-img-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--karta-text-muted);
+}
+
+#karta-chat-root .karta-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+#karta-chat-root .karta-card-name {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--karta-text);
+  line-height: 1.3;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+#karta-chat-root .karta-card-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+#karta-chat-root .karta-card-price {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--karta-primary-dark);
+}
+
+#karta-chat-root .karta-card-old-price {
+  font-size: 11px;
+  color: var(--karta-text-muted);
+  text-decoration: line-through;
+}
+
+#karta-chat-root .karta-card-stock {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#karta-chat-root .karta-stock-in {
+  color: #15803d;
+}
+
+#karta-chat-root .karta-stock-out {
+  color: #b91c1c;
+}
+
+#karta-chat-root .karta-card-variants {
+  margin: 0;
+  font-size: 11px;
+  color: var(--karta-text-muted);
+  line-height: 1.35;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+#karta-chat-root .karta-card-link {
+  display: inline-block;
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: var(--karta-primary);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  line-height: 1;
+  transition: background 0.15s ease;
+}
+
+#karta-chat-root .karta-card-link:hover {
+  background: var(--karta-primary-dark);
+  text-decoration: none;
+}
+
+#karta-chat-root .karta-card-link:focus-visible {
+  outline: 2px solid var(--karta-primary-dark);
+  outline-offset: 1px;
+}

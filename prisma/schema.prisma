@@ -93,7 +93,10 @@ model Product {
   price          Decimal  @db.Decimal(10, 2)
   compareAtPrice Decimal? @db.Decimal(10, 2)
   stock          Int?     // null = stock not managed (available), 0 = out of stock
-  image          String?
+  image          String?  // Primary image URL (from WooCommerce)
+  images         Json?    // Additional image URLs (array of strings, from WooCommerce gallery)
+  category       String?  // Product category name (from WooCommerce)
+  productUrl     String?  // Canonical WooCommerce product permalink — never constructed manually
   status         String   @default("active") // active | draft | archived
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt

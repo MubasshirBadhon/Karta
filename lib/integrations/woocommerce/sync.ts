@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import type { NormalizedProduct, SyncResult } from "./normalizer";
 
 /**
@@ -66,7 +67,9 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
   });
 
   if (existing) {
-    // Update existing product
+    // Update existing product.
+    // New fields use undefined when not provided (older plugin versions)
+    // so existing synced values are never wiped.
     await prisma.product.update({
       where: { id: existing.id },
       data: {
@@ -77,6 +80,14 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         compareAtPrice: product.compareAtPrice,
         stock: product.stock,
         image: product.image,
+        images:
+          product.images === undefined
+            ? undefined
+            : product.images === null
+              ? Prisma.JsonNull
+              : product.images,
+        category: product.category === undefined ? undefined : product.category,
+        productUrl: product.productUrl === undefined ? undefined : product.productUrl,
         status: product.status,
       },
     });
@@ -104,6 +115,9 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         compareAtPrice: product.compareAtPrice,
         stock: product.stock,
         image: product.image,
+        images: product.images ?? undefined,
+        category: product.category ?? undefined,
+        productUrl: product.productUrl ?? undefined,
         status: product.status,
       },
     });

@@ -33,17 +33,26 @@ export interface ToolCallRecord {
 
 /**
  * Process a customer message through the AI commerce engine.
+ *
+ * The optional `options.extraSystem` appends website-specific context to
+ * the system prompt (e.g. deterministic product candidates). Existing
+ * callers (WhatsApp) that do not pass options are unaffected.
  */
 export async function processMessage(
   message: UnifiedMessage,
-  conversationHistory: AIMessage[] = []
+  conversationHistory: AIMessage[] = [],
+  options?: { extraSystem?: string }
 ): Promise<EngineResult> {
   const provider = getAIProvider();
   const toolCalls: ToolCallRecord[] = [];
 
+  const systemContent = options?.extraSystem
+    ? `${COMMERCE_SYSTEM_PROMPT}\n\n${options.extraSystem}`
+    : COMMERCE_SYSTEM_PROMPT;
+
   // Build message history
   const messages: AIMessage[] = [
-    { role: "system", content: COMMERCE_SYSTEM_PROMPT },
+    { role: "system", content: systemContent },
     ...conversationHistory,
     { role: "user", content: message.text },
   ];
