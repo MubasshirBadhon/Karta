@@ -70,8 +70,14 @@ export async function processMessage(
 
       // Execute tool calls and add results to messages
       const newMessages: AIMessage[] = [...messages];
-      if (response.content) {
-        newMessages.push({ role: "assistant", content: response.content });
+      // Include the assistant message WITH tool_calls so Groq can correlate
+      // tool results with the calls (required by OpenAI-compatible APIs)
+      if (response.content || response.toolCalls) {
+        newMessages.push({
+          role: "assistant",
+          content: response.content,
+          toolCalls: response.toolCalls,
+        });
       }
 
       for (const toolCall of response.toolCalls) {
