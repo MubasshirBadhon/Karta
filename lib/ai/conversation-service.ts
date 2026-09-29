@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import type { AIMessage } from "@/lib/ai/types";
 
 /**
  * Conversation Service
@@ -61,7 +62,7 @@ export async function getOrCreateConversation(
 export async function getConversationHistory(
   conversationId: string,
   limit = 20
-): Promise<Array<{ role: string; content: string }>> {
+): Promise<AIMessage[]> {
   const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: "desc" },
@@ -69,7 +70,7 @@ export async function getConversationHistory(
   });
 
   return messages.reverse().map((m) => ({
-    role: m.role,
+    role: m.role as AIMessage["role"],
     content: m.content,
   }));
 }
@@ -98,6 +99,6 @@ export function getConversation(
   conversationId: string
 ): Promise<ConversationInfo | null> {
   return prisma.conversation.findUnique({
-    where: { id: conversationId,
+    where: { id: conversationId },
   });
 }

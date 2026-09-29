@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     for (const message of unifiedMessages) {
       try {
         // Save inbound message
-        await saveMessage(message.conversationId!, "customer", message.text);
+        await saveMessage(message.conversationId!, "user", message.text);
 
         // Get conversation history
         const history = await getConversationHistory(message.conversationId!);

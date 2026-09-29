@@ -45,7 +45,7 @@ export async function processWhatsAppMessage(
   try {
     // Step 1: Persist inbound message
     if (message.conversationId) {
-      await saveMessage(message.conversationId, "customer", message.text);
+      await saveMessage(message.conversationId, "user", message.text);
     }
 
     // Step 2: Get conversation history for context
