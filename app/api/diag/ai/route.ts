@@ -14,6 +14,26 @@ export async function GET() {
   // Check AI_PROVIDER
   diag.aiProvider = process.env.AI_PROVIDER || "groq";
 
+  // List available Groq models
+  try {
+    const modelsResponse = await fetch("https://api.groq.com/openai/v1/models", {
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+    });
+    if (modelsResponse.ok) {
+      const modelsData = await modelsResponse.json();
+      diag.availableModels = (modelsData.data || [])
+        .map((m: { id: string }) => m.id)
+        .filter((id: string) => id.includes("llama") || id.includes("mixtral") || id.includes("gemma"))
+        .slice(0, 20);
+    } else {
+      diag.modelsListStatus = modelsResponse.status;
+    }
+  } catch (error) {
+    diag.modelsListError = error instanceof Error ? error.message : String(error);
+  }
+
   // Test Groq API call
   try {
     const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
