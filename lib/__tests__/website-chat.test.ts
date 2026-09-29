@@ -315,7 +315,7 @@ describe("public site token resolution", () => {
 
 describe("tenant isolation", () => {
   it("loads only the site token tenant's products (no first-tenant fallback)", async () => {
-    const res = await POST(makePostRequest({ message: "hi", siteToken: SITE_TOKEN }, SITE_URL));
+    const res = await POST(makePostRequest({ message: "watch ache?", siteToken: SITE_TOKEN }, SITE_URL));
     expect(res.status).toBe(200);
     expect(mockedPrisma.product.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -661,12 +661,24 @@ describe("API error responses", () => {
   it("returns 500 on internal errors (without exposing internals)", async () => {
     mockedPrisma.product.findMany.mockRejectedValue(new Error("db connection lost: secret-stuff"));
     const res = await POST(
-      makePostRequest({ message: "hi", siteToken: SITE_TOKEN }, SITE_URL)
+      makePostRequest({ message: "watch ache?", siteToken: SITE_TOKEN }, SITE_URL)
     );
     expect(res.status).toBe(500);
     const data = await res.json();
     expect(data.error).toBe("Internal server error");
     expect(JSON.stringify(data)).not.toContain("secret-stuff");
+  });
+
+  it("answers pure greetings deterministically without querying products", async () => {
+    const res = await POST(makePostRequest({ message: "hi", siteToken: SITE_TOKEN }, SITE_URL));
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.response).toContain("Karta");
+    expect(data.products).toEqual([]);
+    // No catalog query and no LLM call for greetings
+    expect(mockedPrisma.product.findMany).not.toHaveBeenCalled();
+    expect(mockedProcessMessage).not.toHaveBeenCalled();
   });
 
   it("includes CORS headers on error responses", async () => {

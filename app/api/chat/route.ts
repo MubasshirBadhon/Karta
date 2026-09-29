@@ -168,6 +168,26 @@ export async function POST(request: Request) {
       );
     }
 
+    // ─── Greetings: deterministic, no LLM call ────────────────
+    // A pure greeting never needs product data, so it is answered
+    // deterministically (instant response, no provider latency, and the
+    // LLM never dumps a product table on "hi").
+    if (isGreeting(message)) {
+      await saveMessage(conversation.id, "user", message);
+      const greetingText = `Hi! I'm Karta, your AI shopping assistant${context.siteName ? ` for ${context.siteName}` : ""}. What are you looking for today?`;
+      await saveMessage(conversation.id, "assistant", greetingText);
+      return NextResponse.json(
+        {
+          success: true,
+          aiSuccess: true,
+          conversationId: conversation.id,
+          response: greetingText,
+          products: [],
+        },
+        { headers: corsHeaders }
+      );
+    }
+
     // ─── Real WooCommerce product data (deterministic source of truth)
     const catalog = await loadCatalog(tenantId);
 
