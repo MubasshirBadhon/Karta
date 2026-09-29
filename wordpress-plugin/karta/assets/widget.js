@@ -172,12 +172,31 @@
 
   // ─── Messages ────────────────────────────────────────────────
 
+  /**
+   * Render AI text safely: textContent only, with minimal markdown support
+   * (**bold**). All content is inserted via textContent/DOM APIs — never
+   * innerHTML — so AI output can never inject markup.
+   */
   function addMessage(role, text, isError) {
     var row = el("div", "karta-msg-row karta-" + role);
-    var bubble = el("div", "karta-msg" + (isError ? " karta-error" : ""), text);
+    var bubble = el("div", "karta-msg" + (isError ? " karta-error" : ""));
+    appendFormattedText(bubble, String(text || ""));
     row.appendChild(bubble);
     messagesEl.appendChild(row);
     scrollToEnd();
+  }
+
+  function appendFormattedText(container, text) {
+    // Split on **bold** markers; odd segments become <strong> nodes.
+    var parts = text.split("**");
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === "") continue;
+      if (i % 2 === 1) {
+        container.appendChild(el("strong", null, parts[i]));
+      } else {
+        container.appendChild(document.createTextNode(parts[i]));
+      }
+    }
   }
 
   function showTyping() {
