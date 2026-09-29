@@ -61,7 +61,7 @@ export async function getOrCreateConversation(
  */
 export async function getConversationHistory(
   conversationId: string,
-  limit = 20
+  limit = 6
 ): Promise<AIMessage[]> {
   const messages = await prisma.message.findMany({
     where: { conversationId },
