@@ -245,7 +245,7 @@ class Karta_Products {
             'price' => (float) $product->get_price(),
             'regularPrice' => (float) $product->get_regular_price(),
             'salePrice' => $product->get_sale_price() ? (float) $product->get_sale_price() : null,
-            'stockQuantity' => $product->get_stock_quantity() ?: 0,
+            'stockQuantity' => $product->get_stock_quantity(),
             'stockStatus' => $product->get_stock_status(),
             'image' => $image_url,
             'type' => 'variable',

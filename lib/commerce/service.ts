@@ -20,7 +20,7 @@ export interface ProductSearchResult {
   slug: string;
   price: number;
   compareAtPrice: number | null;
-  stock: number;
+  stock: number | null;
   image: string | null;
   status: string;
 }
@@ -32,7 +32,7 @@ export interface ProductDetails {
   description: string | null;
   price: number;
   compareAtPrice: number | null;
-  stock: number;
+  stock: number | null;
   image: string | null;
   status: string;
   variants: VariantInfo[];
@@ -43,7 +43,7 @@ export interface VariantInfo {
   name: string;
   attributes: Record<string, string>;
   price: number;
-  stock: number;
+  stock: number | null;
   sku: string | null;
 }
 

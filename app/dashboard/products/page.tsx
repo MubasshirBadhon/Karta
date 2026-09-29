@@ -105,7 +105,7 @@ export default async function ProductsPage() {
                       ৳{Number(product.price).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-500">
-                      {product.stock}
+                      {product.stock === null ? "N/A" : product.stock}
                     </td>
                     <td className="px-4 py-3">
                       <span

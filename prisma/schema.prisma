@@ -92,7 +92,7 @@ model Product {
   description    String?  @db.Text
   price          Decimal  @db.Decimal(10, 2)
   compareAtPrice Decimal? @db.Decimal(10, 2)
-  stock          Int      @default(0)
+  stock          Int?     // null = stock not managed (available), 0 = out of stock
   image          String?
   status         String   @default("active") // active | draft | archived
   createdAt      DateTime @default(now())
@@ -117,7 +117,7 @@ model ProductVariant {
   name       String
   attributes Json     // { "color": "Black", "size": "L" }
   price      Decimal  @db.Decimal(10, 2)
-  stock      Int      @default(0)
+  stock      Int?     // null = stock not managed (available), 0 = out of stock
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -125,6 +125,7 @@ model ProductVariant {
   orderItems OrderItem[]
 
   @@unique([productId, sku])
+  @@unique([productId, externalId])
   @@index([productId])
   @@map("product_variants")
 }

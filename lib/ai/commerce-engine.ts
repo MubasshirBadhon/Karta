@@ -22,6 +22,7 @@ export interface EngineResult {
   toolCalls: ToolCallRecord[];
   success: boolean;
   error?: string;
+  errorDetails?: string;
 }
 
 export interface ToolCallRecord {
@@ -111,12 +112,16 @@ export async function processMessage(
       success: true,
     };
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("AI Engine error:", errorMessage);
+
     return {
       text: "Sorry, I'm experiencing some technical difficulties. Please try again in a moment.",
       conversationId: message.conversationId || "",
       toolCalls,
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error",
+      error: errorMessage,
+      errorDetails: error instanceof Error ? error.stack : undefined,
     };
   }
 }
