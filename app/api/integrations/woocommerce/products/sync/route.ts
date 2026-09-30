@@ -3,6 +3,24 @@ import { authenticateWordPressRequest } from "@/lib/integrations/woocommerce/aut
 import { validateSyncRequest } from "@/lib/integrations/woocommerce/normalizer";
 import { syncProducts, reconcileProducts } from "@/lib/integrations/woocommerce/sync";
 
+/**
+ * POST /api/integrations/woocommerce/products/sync
+ *
+ * Product sync endpoint (called by the WordPress plugin, HMAC-authenticated).
+ *
+ * The plugin syncs in batches (BATCH_SIZE products per request) and marks
+ * the LAST batch with sync.isFinalBatch=true, including the complete list
+ * of external IDs seen across the whole sync (sync.seenExternalIds).
+ *
+ * RECONCILIATION ONLY AFTER THE FULL SYNC SUCCEEDS:
+ * - Reconciliation (archiving products not seen in the completed sync)
+ *   runs ONLY on the final batch.
+ * - If the Woo API fails halfway through, the plugin aborts and never
+ *   sends isFinalBatch — so products are NEVER archived just because
+ *   they were not seen in a partial sync.
+ * - Requests without the final-batch signal (e.g. older plugin versions)
+ *   only upsert products; nothing is archived.
+ */
 export async function POST(request: Request) {
   try {
     // Authenticate the request
@@ -22,16 +40,6 @@ export async function POST(request: Request) {
     // Parse and validate the request body
     const body = await request.json();
 
-    // DIAGNOSTIC: Log received stock data
-    console.log("[STOCK DIAG] Received products:", body.products?.map((p: { externalId: string; name: string; stockQuantity: number | null; stockStatus: string; manageStock: boolean | undefined; type: string }) => ({
-      externalId: p.externalId,
-      name: p.name,
-      stockQuantity: p.stockQuantity,
-      stockStatus: p.stockStatus,
-      manageStock: p.manageStock,
-      type: p.type,
-    })));
-
     const validation = validateSyncRequest(body);
 
     if (!validation.success) {
@@ -41,32 +49,37 @@ export async function POST(request: Request) {
       );
     }
 
-    // DIAGNOSTIC: Log normalized stock data
-    console.log("[STOCK DIAG] Normalized products:", validation.products?.map((p) => ({
-      externalId: p.externalId,
-      name: p.name,
-      stock: p.stock,
-      type: p.type,
-    })));
+    // Sync products (scoped to this Woo connection)
+    const result = await syncProducts(auth.tenantId!, auth.connectionId!, validation.products ?? []);
 
-    // Sync products
-    const result = await syncProducts(auth.tenantId!, validation.products!);
+    // Batch metadata from the plugin
+    const isFinalBatch = body?.sync?.isFinalBatch === true;
+    const seenExternalIds: string[] =
+      Array.isArray(body?.sync?.seenExternalIds) && body.sync.seenExternalIds.length > 0
+        ? body.sync.seenExternalIds
+        : (validation.products ?? []).map((p: { externalId: string }) => p.externalId);
 
-    // Reconcile: archive products not in this sync batch
-    const syncedIds = validation.products!.map((p) => p.externalId);
-    const reconciliation = await reconcileProducts(auth.tenantId!, syncedIds);
+    let archived = 0;
 
-    // DIAGNOSTIC: Log sync result
-    console.log("[STOCK DIAG] Sync result:", result);
-    console.log("[STOCK DIAG] Reconciliation:", reconciliation);
+    if (isFinalBatch) {
+      // Full sync completed successfully — archive previously-active
+      // products that were NOT seen in this completed sync.
+      const reconciliation = await reconcileProducts(
+        auth.tenantId!,
+        auth.connectionId!,
+        seenExternalIds
+      );
+      archived = reconciliation.archived;
+    }
 
     return NextResponse.json({
       success: true,
       ...result,
-      archived: reconciliation.archived,
+      archived,
+      isFinalBatch,
     });
   } catch (error) {
-    console.error("[STOCK DIAG] Error:", error);
+    console.error("[SYNC] Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

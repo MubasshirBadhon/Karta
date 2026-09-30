@@ -100,6 +100,7 @@ model Product {
   images         Json?    // Additional image URLs (array of strings, from WooCommerce gallery)
   category       String?  // Product category name (from WooCommerce)
   productUrl     String?  // Canonical WooCommerce product permalink — never constructed manually
+  wooConnectionId String?  // The Woo connection that synced this product (identity scope)
   status         String   @default("active") // active | draft | archived
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -108,9 +109,10 @@ model Product {
   variants  ProductVariant[]
   orderItems OrderItem[]
 
-  @@unique([tenantId, slug])
-  @@unique([tenantId, externalId])
+  @@unique([tenantId, wooConnectionId, slug])
+  @@unique([tenantId, wooConnectionId, externalId])
   @@index([tenantId])
+  @@index([wooConnectionId])
   @@map("products")
 }
 

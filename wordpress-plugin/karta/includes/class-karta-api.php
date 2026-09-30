@@ -76,10 +76,18 @@ class Karta_API {
 
     /**
      * Sync products to Karta Cloud.
+     *
+     * $is_final_batch marks the LAST batch of a full sync (the Karta side
+     * reconciles/archives only then); $seen_external_ids carries the
+     * complete list of external IDs seen across the whole sync.
      */
-    public static function sync_products($products) {
+    public static function sync_products($products, $is_final_batch = false, $seen_external_ids = []) {
         return self::request('/api/integrations/woocommerce/products/sync', 'POST', [
             'products' => $products,
+            'sync' => [
+                'isFinalBatch' => (bool) $is_final_batch,
+                'seenExternalIds' => array_values(array_map('strval', $seen_external_ids)),
+            ],
         ]);
     }
 

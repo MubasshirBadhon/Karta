@@ -56,13 +56,18 @@ export async function POST(request: Request) {
     // Process based on event type
     if (eventType === "product.deleted") {
       const productId = body.productId || body.id;
-      await softDeleteProduct(auth.tenantId!, productId);
+      // Archive (never hard-delete) the product, scoped to this Woo
+      // connection so one connection's webhook never archives another
+      // connection's product.
+      if (productId) {
+        await softDeleteProduct(auth.tenantId!, auth.connectionId!, String(productId));
+      }
     } else if (eventType === "product.created" || eventType === "product.updated") {
       const product = body.product;
       if (product) {
         const validation = validateSyncRequest({ products: [product] });
         if (validation.success) {
-          await syncProducts(auth.tenantId!, validation.products!);
+          await syncProducts(auth.tenantId!, auth.connectionId!, validation.products!);
         }
       }
     }

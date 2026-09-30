@@ -10,7 +10,9 @@ export default async function DashboardPage() {
   const tenant = await getOrCreateDemoTenant();
 
   const productCount = tenant
-    ? await prisma.product.count({ where: { tenantId: tenant.id } })
+    ? await prisma.product.count({
+        where: { tenantId: tenant.id, status: { not: "archived" } },
+      })
     : 0;
 
   const connection = tenant

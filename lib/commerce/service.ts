@@ -134,6 +134,7 @@ export async function searchProducts(
 
 /**
  * Get full product details including variants.
+ * Archived products are never returned to the AI.
  */
 export async function getProduct(
   tenantId: string,
@@ -144,6 +145,7 @@ export async function getProduct(
   const product = await prisma.product.findFirst({
     where: {
       tenantId,
+      status: "active", // archived/draft products are never AI-visible
       OR: [{ id: productIdOrSlug }, { slug: productIdOrSlug }],
     },
     include: {
@@ -265,6 +267,11 @@ export async function checkStock(
 
   if (!product) {
     return { productId, stock: 0, available: false };
+  }
+
+  // Archived products are never available, regardless of stock data
+  if (product.status === "archived") {
+    return { productId, stock: null, available: false };
   }
 
   // If product has variants, sum all variant stock

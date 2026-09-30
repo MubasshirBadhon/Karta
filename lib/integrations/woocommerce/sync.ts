@@ -6,15 +6,28 @@ import type { NormalizedProduct, SyncResult } from "./normalizer";
  * WooCommerce Product Sync
  *
  * Upserts products from WooCommerce into Karta's database.
- * Uses tenantId + externalId as the logical identity for idempotency.
+ *
+ * Product identity is scoped to the WooCommerce connection:
+ *   tenantId + wooConnectionId + externalId
+ *
+ * This means:
+ * - Two Woo connections (even under the same tenant) can safely use the
+ *   same external product ID without colliding.
+ * - When a store is reconnected (new connection), its current products
+ *   are new rows scoped to the new connection; old archived rows are NOT
+ *   resurrected merely because their external IDs match.
+ * - Historical data is preserved: products that disappear from
+ *   WooCommerce are archived (status="archived"), never hard-deleted,
+ *   because orders/conversations may reference them.
  */
 
 /**
- * Sync a batch of products for a tenant.
- * Creates new products and updates existing ones.
+ * Sync a batch of products for a tenant via a specific Woo connection.
+ * Creates new products and updates existing ones (connection-scoped).
  */
 export async function syncProducts(
   tenantId: string,
+  wooConnectionId: string,
   products: NormalizedProduct[]
 ): Promise<SyncResult> {
   const result: SyncResult = {
@@ -26,20 +39,11 @@ export async function syncProducts(
 
   for (const product of products) {
     try {
-      await upsertProduct(tenantId, product);
-      // Determine if it was created or updated
-      const existing = await prisma.product.findUnique({
-        where: {
-          tenantId_externalId: {
-            tenantId,
-            externalId: product.externalId,
-          },
-        },
-      });
-      if (existing && existing.createdAt < new Date(Date.now() - 1000)) {
-        result.updated++;
-      } else {
+      const outcome = await upsertProduct(tenantId, wooConnectionId, product);
+      if (outcome === "created") {
         result.created++;
+      } else {
+        result.updated++;
       }
     } catch (error) {
       result.failed++;
@@ -53,13 +57,19 @@ export async function syncProducts(
 }
 
 /**
- * Upsert a single product and its variants.
+ * Upsert a single product and its variants, scoped to the Woo connection.
+ * Returns "created" or "updated" so the caller doesn't need a second lookup.
  */
-async function upsertProduct(tenantId: string, product: NormalizedProduct): Promise<void> {
+async function upsertProduct(
+  tenantId: string,
+  wooConnectionId: string,
+  product: NormalizedProduct
+): Promise<"created" | "updated"> {
   const existing = await prisma.product.findUnique({
     where: {
-      tenantId_externalId: {
+      tenantId_wooConnectionId_externalId: {
         tenantId,
+        wooConnectionId,
         externalId: product.externalId,
       },
     },
@@ -103,46 +113,52 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         where: { productId: existing.id },
       });
     }
-  } else {
-    // Create new product
-    const newProduct = await prisma.product.create({
-      data: {
-        tenantId,
-        externalId: product.externalId,
-        sku: product.sku,
-        name: product.name,
-        slug: product.slug,
-        description: product.description,
-        price: product.price,
-        compareAtPrice: product.compareAtPrice,
-        stock: product.stock,
-        image: product.image,
-        images: product.images ?? undefined,
-        category: product.category ?? undefined,
-        productUrl: product.productUrl ?? undefined,
-        stockStatus: product.stockStatus ?? undefined,
-        manageStock: product.manageStock ?? undefined,
-        status: product.status,
-      },
-    });
 
-    // Create variants
-    if (product.type === "variable" && product.variations.length > 0) {
-      for (const variant of product.variations) {
-        await prisma.productVariant.create({
-          data: {
-            productId: newProduct.id,
-            externalId: variant.externalId,
-            sku: variant.sku,
-            name: variant.name,
-            attributes: variant.attributes,
-            price: variant.price,
-            stock: variant.stock,
-          },
-        });
-      }
+    return "updated";
+  }
+
+  // Create new product (scoped to this Woo connection). Legacy rows from
+  // other/previous connections are never matched or resurrected here.
+  const newProduct = await prisma.product.create({
+    data: {
+      tenantId,
+      wooConnectionId,
+      externalId: product.externalId,
+      sku: product.sku,
+      name: product.name,
+      slug: product.slug,
+      description: product.description,
+      price: product.price,
+      compareAtPrice: product.compareAtPrice,
+      stock: product.stock,
+      image: product.image,
+      images: product.images ?? undefined,
+      category: product.category ?? undefined,
+      productUrl: product.productUrl ?? undefined,
+      stockStatus: product.stockStatus ?? undefined,
+      manageStock: product.manageStock ?? undefined,
+      status: product.status,
+    },
+  });
+
+  // Create variants
+  if (product.type === "variable" && product.variations.length > 0) {
+    for (const variant of product.variations) {
+      await prisma.productVariant.create({
+        data: {
+          productId: newProduct.id,
+          externalId: variant.externalId,
+          sku: variant.sku,
+          name: variant.name,
+          attributes: variant.attributes,
+          price: variant.price,
+          stock: variant.stock,
+        },
+      });
     }
   }
+
+  return "created";
 }
 
 /**
@@ -189,19 +205,24 @@ async function syncVariants(
 }
 
 /**
- * Soft-delete a product by marking it as archived.
- * Called when a WooCommerce product is deleted.
+ * Soft-delete a product by marking it as archived (variants stay attached —
+ * they are only reachable through their product, which is now archived).
+ * Called when a WooCommerce product.deleted webhook arrives.
+ *
+ * Scoped to the Woo connection (+ legacy rows with no connection) so a
+ * webhook from one connection never archives another connection's product.
  */
 export async function softDeleteProduct(
   tenantId: string,
+  wooConnectionId: string,
   externalId: string
 ): Promise<boolean> {
-  const product = await prisma.product.findUnique({
+  const product = await prisma.product.findFirst({
     where: {
-      tenantId_externalId: {
-        tenantId,
-        externalId,
-      },
+      tenantId,
+      externalId,
+      status: { not: "archived" },
+      OR: [{ wooConnectionId }, { wooConnectionId: null }],
     },
   });
 
@@ -218,19 +239,33 @@ export async function softDeleteProduct(
 }
 
 /**
- * Reconcile products after a full sync.
- * Archives any products in the database that are NOT in the incoming sync batch.
- * This handles products deleted from WooCommerce.
+ * Reconcile products after a SUCCESSFUL full sync.
+ *
+ * Archives any previously-active products for this tenant that were NOT
+ * seen in the completed sync:
+ * - products synced by this Woo connection whose externalId was not seen
+ * - legacy products with no connection scope (synced before
+ *   connection-scoped identity existed) whose externalId was not seen
+ *
+ * Reconciliation happens ONLY after the full sync succeeds — a failed or
+ * partial sync never archives anything (the caller gates this).
+ * Products are archived, never hard-deleted.
+ *
+ * Tenant-scoped on the archive side is safe: provisioning enforces at
+ * most ONE active Woo connection per tenant, so every active product in
+ * the tenant originates from the connection being synchronized.
  */
 export async function reconcileProducts(
   tenantId: string,
-  syncedExternalIds: string[]
+  wooConnectionId: string,
+  seenExternalIds: string[]
 ): Promise<{ archived: number }> {
   const result = await prisma.product.updateMany({
     where: {
       tenantId,
-      externalId: { notIn: syncedExternalIds },
       status: { not: "archived" },
+      externalId: { notIn: seenExternalIds },
+      OR: [{ wooConnectionId }, { wooConnectionId: null }],
     },
     data: { status: "archived" },
   });

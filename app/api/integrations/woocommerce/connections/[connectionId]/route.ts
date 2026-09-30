@@ -59,17 +59,19 @@ export async function DELETE(
       );
     }
 
-    // Delete the connection record
-    // This revokes authentication — old connectionId/secret will no longer work
-    // Products, orders, and customers are NOT deleted (hard deletion)
-    await prisma.wooCommerceConnection.delete({
+    // Mark the connection inactive (soft disconnect) instead of
+    // hard-deleting — the record is preserved for connection-scoped
+    // product identity. Authentication is still revoked: the auth layer
+    // rejects non-active connections, so the old credentials no longer
+    // authenticate any Karta API call.
+    await prisma.wooCommerceConnection.update({
       where: { id: connection.id },
+      data: { status: "disconnected" },
     });
 
     // Archive the tenant's products (soft deletion) — a disconnected
     // store's products must no longer be exposed to the website AI.
-    // Orders/conversations may still reference them, so products are
-    // archived (status="archived"), never hard-deleted.
+    // Orders, conversations, and customers are NOT touched.
     await prisma.product.updateMany({
       where: { tenantId: tenant.id, status: { not: "archived" } },
       data: { status: "archived" },

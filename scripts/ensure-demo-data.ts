@@ -24,6 +24,23 @@ async function main() {
 
   console.log(`✓ Tenant: ${tenant.name} (${tenant.id})`);
 
+  // Find or create the demo Woo connection (the identity scope for
+  // seeded products: tenantId + wooConnectionId + externalId)
+  let connection = await prisma.wooCommerceConnection.findFirst({
+    where: { tenantId: tenant.id },
+  });
+  if (!connection) {
+    connection = await prisma.wooCommerceConnection.create({
+      data: {
+        tenantId: tenant.id,
+        siteUrl: "https://bd-deals.unaux.com",
+        connectionId: "kwc_demo_seed",
+        connectionSecret: "seed-only-not-used-for-production-auth",
+        status: "active",
+      },
+    });
+  }
+  const wooConnectionId = connection.connectionId;
   // Create demo products
   const products = [
     {
@@ -91,8 +108,9 @@ async function main() {
   for (const product of products) {
     await prisma.product.upsert({
       where: {
-        tenantId_externalId: {
+        tenantId_wooConnectionId_externalId: {
           tenantId: tenant.id,
+          wooConnectionId,
           externalId: product.externalId,
         },
       },

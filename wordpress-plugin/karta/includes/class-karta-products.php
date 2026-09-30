@@ -39,6 +39,15 @@ class Karta_Products {
 
     /**
      * Sync all WooCommerce products to Karta Cloud.
+     *
+     * Syncs in batches; the LAST batch is marked with isFinalBatch and
+     * carries the complete list of external IDs seen across the whole
+     * sync. Reconciliation (archiving products not seen) happens on the
+     * Karta side ONLY for that final batch.
+     *
+     * If any batch fails, the sync ABORTS — the seen list is incomplete,
+     * so the sync must never complete (and never archive products) on
+     * partial data.
      */
     public static function sync_all_products() {
         if (!class_exists('WC_Product')) {
@@ -49,6 +58,7 @@ class Karta_Products {
         $total_synced = 0;
         $total_failed = 0;
         $has_more = true;
+        $seen_external_ids = [];
 
         while ($has_more) {
             $products = self::get_woocommerce_products($page, self::BATCH_SIZE);
@@ -63,17 +73,30 @@ class Karta_Products {
                 $normalized_product = self::normalize_product($product);
                 if ($normalized_product) {
                     $normalized[] = $normalized_product;
+                    $seen_external_ids[] = (string) $normalized_product['externalId'];
                 }
             }
 
             if (!empty($normalized)) {
-                $result = Karta_API::sync_products($normalized);
+                $is_last_batch = count($products) < self::BATCH_SIZE;
+                $result = Karta_API::sync_products($normalized, $is_last_batch, $seen_external_ids);
 
                 if (is_wp_error($result)) {
+                    // Abort the sync: never complete (and never archive) on
+                    // partial data.
                     $total_failed += count($normalized);
-                } else {
-                    $total_synced += count($normalized);
+                    update_option('karta_last_sync_at', current_time('mysql'));
+                    return new WP_Error(
+                        'sync_failed',
+                        sprintf(
+                            'Product sync failed at batch %d: %s. No products were archived — re-run the sync to complete it.',
+                            $page,
+                            $result->get_error_message()
+                        )
+                    );
                 }
+
+                $total_synced += count($normalized);
             }
 
             if (count($products) < self::BATCH_SIZE) {
