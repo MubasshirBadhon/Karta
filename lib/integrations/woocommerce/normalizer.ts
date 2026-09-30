@@ -78,6 +78,7 @@ export interface NormalizedProduct {
   category: string | null | undefined;
   productUrl: string | null | undefined;
   stockStatus: string | null | undefined;
+  manageStock: boolean | null | undefined;
   status: string;
   type: "simple" | "variable";
   variations: NormalizedVariation[];
@@ -155,6 +156,10 @@ export function normalizeProduct(product: z.infer<typeof ProductSchema>): Normal
     // so explicit out-of-stock remains unavailable even when quantity is null
     stockStatus:
       product.stockStatus === undefined ? undefined : product.stockStatus || null,
+    // WooCommerce manage_stock — distinguishes a merchant-set manual stock
+    // status (manageStock=false) from a quantity-derived status (true)
+    manageStock:
+      product.manageStock === undefined ? undefined : product.manageStock,
     status,
     type: product.type,
     variations: product.variations.map((v) => ({

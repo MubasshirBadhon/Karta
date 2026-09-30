@@ -100,8 +100,9 @@ export interface CatalogProduct {
   description: string | null;
   price: number;
   compareAtPrice: number | null;
-  stock: number | null; // null = stock not managed (available), 0 = out of stock
+  stock: number | null; // null = stock not managed, 0 = out of stock (ignored in unlimited mode)
   stockStatus: string | null; // WooCommerce: instock | outofstock | onbackorder | null
+  manageStock: boolean | null; // WooCommerce manage_stock (null = unknown)
   status: string; // Karta product status: active | draft | archived
   image: string | null;
   productUrl: string | null;
@@ -116,6 +117,8 @@ export interface CatalogProduct {
     stock: number | null;
   }>;
 }
+
+export type InventoryMode = "unlimited" | "managed";
 
 export interface ProductCard {
   id: string;
@@ -146,28 +149,66 @@ export interface ProductCard {
 // ─── Availability (exact stock semantics) ────────────────────
 
 /**
- * Exact stock semantics:
- * - stock === null AND WooCommerce stock status is "outofstock" → unavailable
- *   (explicit WooCommerce out-of-stock wins even when quantity is null)
- * - stock === null (stock management disabled) → available unless status says otherwise
- * - stock > 0 → available
- * - stock === 0 (stock managed) → out of stock
- * - null is NEVER converted to 0 anywhere.
+ * Karta's own inventory policy — the availability engine.
+ *
+ * inventoryMode = "unlimited" (the merchant does not use WooCommerce as
+ * quantity inventory control):
+ *   - Stock quantity MUST NOT determine availability.
+ *   - stock=0, stock=null, stock=100 → all available.
+ *   - Never "out of stock" / "stock unavailable" from quantity.
+ *   - The product is unavailable ONLY if Karta has it archived/draft
+ *     (explicitly unavailable) or the merchant EXPLICITLY set the
+ *     WooCommerce stock status to out-of-stock manually (which only
+ *     happens when stock management is disabled — independent of quantity).
+ *   - A quantity-derived out-of-stock status (manageStock=true) is
+ *     quantity-driven and is ignored.
+ *
+ * inventoryMode = "managed":
+ *   - WooCommerce quantity/stock status determine availability:
+ *     explicit outofstock → unavailable; stock=0 → unavailable;
+ *     stock=null (quantity unknown/not managed) → available; stock>0 → available.
+ *
+ * null is NEVER converted to 0 anywhere.
  */
-export function isProductAvailable(product: CatalogProduct): boolean {
+export function isProductAvailable(
+  product: CatalogProduct,
+  inventoryMode: InventoryMode = "unlimited"
+): boolean {
+  // Archived/draft products are explicitly unavailable in Karta
   if (product.status !== "active") return false;
+
+  if (inventoryMode === "unlimited") {
+    // Only a MANUAL merchant-set out-of-stock status counts. When stock
+    // management is enabled, WooCommerce derives the status from the
+    // quantity — that is quantity-driven and must be ignored.
+    if (product.manageStock === false && product.stockStatus === "outofstock") {
+      return false;
+    }
+    return true;
+  }
+
+  // Managed inventory mode
   if (product.stockStatus === "outofstock") return false;
-  if (product.stock === null) return true; // not managed → available
+  if (product.stock === null) return true; // quantity unknown/not managed
   return product.stock > 0;
 }
 
 /**
- * Human-readable availability label. Never displays "out of stock" for
- * products whose stock is not managed.
+ * Human-readable availability label, inventory-policy aware. Never
+ * displays "out of stock" for unlimited-inventory products.
  */
-export function availabilityLabel(product: CatalogProduct): string {
-  if (!isProductAvailable(product)) return "Out of stock";
-  if (product.stock !== null && product.stock > 0) return `In stock (${product.stock})`;
+export function availabilityLabel(
+  product: CatalogProduct,
+  inventoryMode: InventoryMode = "unlimited"
+): string {
+  if (!isProductAvailable(product, inventoryMode)) return "Out of stock";
+  if (
+    inventoryMode === "managed" &&
+    product.stock !== null &&
+    product.stock > 0
+  ) {
+    return `In stock (${product.stock})`;
+  }
   return "Available";
 }
 
@@ -409,7 +450,8 @@ export function sanitizeAssistantText(text: string): string {
  */
 export function resolveVariant(
   product: CatalogProduct,
-  attributes: { color?: string | null; size?: string | null }
+  attributes: { color?: string | null; size?: string | null },
+  inventoryMode: InventoryMode = "unlimited"
 ): CatalogProduct["variants"][number] | null {
   if (!product.variants.length) return null;
 
@@ -427,8 +469,13 @@ export function resolveVariant(
 
   if (matches.length === 1) return matches[0];
 
-  // Prefer an available match when several match
-  const available = matches.filter((v) => v.stock === null || v.stock > 0);
+  // Prefer an available match when several match — inventory-policy aware
+  const available = matches.filter(
+    (v) =>
+      inventoryMode === "unlimited" ||
+      v.stock === null ||
+      v.stock > 0
+  );
   if (available.length >= 1) return available[0];
   return matches[0] || null;
 }
@@ -498,9 +545,10 @@ export function findProductByName(catalog: CatalogProduct[], message: string): C
 export function pickProducts(
   catalog: CatalogProduct[],
   message: string,
-  recentProductIds: string[] = []
+  recentProductIds: string[] = [],
+  inventoryMode: InventoryMode = "unlimited"
 ): CatalogProduct[] {
-  const available = catalog.filter(isProductAvailable);
+  const available = catalog.filter((p) => isProductAvailable(p, inventoryMode));
   const range = extractBudgetRange(message);
   const color = detectColor(message);
   const size = detectSize(message);
@@ -577,7 +625,7 @@ export function variantSummary(variant: { name: string; attributes: Record<strin
   return values.length ? values.join(", ") : variant.name;
 }
 
-function toCard(product: CatalogProduct): ProductCard {
+function toCard(product: CatalogProduct, inventoryMode: InventoryMode): ProductCard {
   return {
     id: product.id,
     externalId: product.externalId,
@@ -586,9 +634,9 @@ function toCard(product: CatalogProduct): ProductCard {
     price: Number(product.price),
     compareAtPrice: product.compareAtPrice ? Number(product.compareAtPrice) : null,
     stock: product.stock,
-    stockManaged: product.stock !== null,
-    available: isProductAvailable(product),
-    availability: availabilityLabel(product),
+    stockManaged: product.manageStock === true,
+    available: isProductAvailable(product, inventoryMode),
+    availability: availabilityLabel(product, inventoryMode),
     imageUrl: product.image || null,
     productUrl: product.productUrl || null,
     sku: product.sku || null,
@@ -600,7 +648,7 @@ function toCard(product: CatalogProduct): ProductCard {
       attributes: v.attributes,
       price: Number(v.price),
       stock: v.stock,
-      available: v.stock === null || v.stock > 0,
+      available: inventoryMode === "unlimited" || v.stock === null || v.stock > 0,
     })),
   };
 }
@@ -609,9 +657,14 @@ function toCard(product: CatalogProduct): ProductCard {
  * Build structured product cards from catalog products.
  * Only REAL data from the database is included — the AI never invents
  * product URLs, images, prices, stock, or variants. Archived products are
- * never included.
+ * never included. Availability follows the merchant's inventory policy.
  */
-export function buildProductCards(catalog: CatalogProduct[], ids: string[], max = 4): ProductCard[] {
+export function buildProductCards(
+  catalog: CatalogProduct[],
+  ids: string[],
+  max = 4,
+  inventoryMode: InventoryMode = "unlimited"
+): ProductCard[] {
   const seen = new Set<string>();
   const cards: ProductCard[] = [];
 
@@ -621,17 +674,17 @@ export function buildProductCards(catalog: CatalogProduct[], ids: string[], max 
     if (!product || seen.has(product.id)) continue;
     if (product.status !== "active") continue; // deleted/archived never shown
     seen.add(product.id);
-    cards.push(toCard(product));
+    cards.push(toCard(product, inventoryMode));
   }
 
   if (cards.length === 0) {
     // No IDs matched — fall back to the first available catalog products
     for (const product of catalog) {
       if (cards.length >= max) break;
-      if (!isProductAvailable(product)) continue;
+      if (!isProductAvailable(product, inventoryMode)) continue;
       if (seen.has(product.id)) continue;
       seen.add(product.id);
-      cards.push(toCard(product));
+      cards.push(toCard(product, inventoryMode));
     }
   }
 
@@ -667,13 +720,35 @@ const INTROS_ENGLISH = [
   "A few products you might like:",
 ];
 
-export function buildIntroText(candidates: CatalogProduct[], message: string): string {
+export function buildIntroText(
+  candidates: CatalogProduct[],
+  message: string
+): string {
   if (!candidates.length) return "";
+
+  // A single exact product match gets a direct name-mentioning response
+  if (candidates.length === 1) {
+    const name = candidates[0].name;
+    return hasBanglaScript(message)
+      ? `জি, ${name} আছে।`
+      : `Yes, ${name} is available.`;
+  }
+
   const bangla = hasBanglaScript(message);
   const list = bangla ? INTROS_BANGLA : INTROS_ENGLISH;
   // Deterministic variety: rotate by a simple hash of the message
   const hash = String(message || "").length + candidates.length;
   return list[hash % list.length];
+}
+
+/**
+ * Deterministic fallback when the AI provider is unavailable/rate limited.
+ * Concise, customer-safe — never mentions provider errors.
+ */
+export function buildProviderFallbackText(message: string): string {
+  return hasBanglaScript(message)
+    ? "আমি এই মুহূর্তে জটিল প্রশ্নের উত্তর দিতে একটু সমস্যায় আছি। পণ্য, দাম ও availability নিয়ে জিজ্ঞেস করলে আমি সাথে সাথে সাহায্য করতে পারব 😊"
+    : "I'm having trouble with complex questions right now. For products, prices, and availability I can still help instantly — just ask! 😊";
 }
 
 export function buildNoMatchText(): string {

@@ -36,7 +36,7 @@ describe("WooCommerce Provisioning", () => {
         id: "tenant-1",
         name: "Test Tenant",
         slug: "test-tenant",
-        createdAt: new Date(),
+        inventoryMode: "unlimited",        createdAt: new Date(),
         updatedAt: new Date(),
       });
       vi.mocked(prisma.wooCommerceConnection.findFirst).mockResolvedValue(null);
@@ -95,7 +95,7 @@ describe("WooCommerce Provisioning", () => {
         id: "tenant-1",
         name: "Test",
         slug: "test",
-        createdAt: new Date(),
+        inventoryMode: "unlimited",        createdAt: new Date(),
         updatedAt: new Date(),
       });
       vi.mocked(prisma.wooCommerceConnection.findFirst).mockResolvedValue({
@@ -125,7 +125,7 @@ describe("WooCommerce Provisioning", () => {
         id: "tenant-1",
         name: "Test",
         slug: "test",
-        createdAt: new Date(),
+        inventoryMode: "unlimited",        createdAt: new Date(),
         updatedAt: new Date(),
       });
       vi.mocked(prisma.wooCommerceConnection.findFirst).mockResolvedValue(null);
@@ -313,7 +313,7 @@ describe("WooCommerce Provisioning", () => {
         id: "tenant-1",
         name: "Test",
         slug: "test",
-        createdAt: new Date(),
+        inventoryMode: "unlimited",        createdAt: new Date(),
         updatedAt: new Date(),
       });
       vi.mocked(prisma.wooCommerceConnection.findFirst).mockResolvedValue(null);

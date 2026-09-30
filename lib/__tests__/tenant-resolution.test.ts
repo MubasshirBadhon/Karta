@@ -25,6 +25,7 @@ describe("Tenant Resolution", () => {
         id: "tenant-1",
         name: "Karta Demo Store",
         slug: "karta-demo-store",
+      inventoryMode: "unlimited",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -43,6 +44,7 @@ describe("Tenant Resolution", () => {
         id: "tenant-1",
         name: "Karta Demo Store",
         slug: "karta-demo-store",
+      inventoryMode: "unlimited",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -64,6 +66,7 @@ describe("Tenant Resolution", () => {
         id: "tenant-1",
         name: "Karta Demo Store",
         slug: "karta-demo-store",
+      inventoryMode: "unlimited",
         createdAt: new Date(),
         updatedAt: new Date(),
       });
@@ -90,6 +93,7 @@ describe("Tenant Resolution", () => {
         id: "tenant-1",
         name: "Karta Demo Store",
         slug: "karta-demo-store",
+      inventoryMode: "unlimited",
         createdAt: new Date(),
         updatedAt: new Date(),
       });

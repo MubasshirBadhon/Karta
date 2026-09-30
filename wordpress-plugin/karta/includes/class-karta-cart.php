@@ -56,7 +56,8 @@ class Karta_Cart {
      * {
      *   "productId": 123,          // WooCommerce product ID (required)
      *   "variationId": 456,        // WooCommerce variation ID (optional)
-     *   "quantity": 1              // 1-20 (optional, default 1)
+     *   "quantity": 1,             // 1-20 (optional, default 1)
+     *   "inventoryMode": "unlimited" // Karta's inventory policy (optional)
      * }
      */
     public static function handle_add_to_cart($request) {
@@ -72,11 +73,23 @@ class Karta_Cart {
         }
         $quantity = min($quantity, 20);
 
+        // Karta's inventory policy travels with the confirmed cart action
+        // from the chat API. "unlimited" = the merchant does not use
+        // WooCommerce as quantity inventory control, so quantity must not
+        // block the add. (WooCommerce still validates stock at checkout,
+        // so this cannot create orders for unavailable products.)
+        $inventory_mode = (string) $request->get_param('inventoryMode');
+        $unlimited_inventory = ($inventory_mode === 'unlimited');
+
         if ($product_id <= 0) {
             return new WP_Error('invalid_product', 'Invalid product.', ['status' => 400]);
         }
 
-        // Validate the product against WooCommerce (source of truth)
+        // Validate the product against WooCommerce (source of truth for
+        // the product itself). Stock-related checks are policy-aware:
+        // - unlimited mode: only structural checks (exists, published,
+        //   price set) — quantity NEVER blocks the add
+        // - managed mode: WooCommerce's full purchasable/in-stock validation
         $product = wc_get_product($product_id);
         if (!$product) {
             return new WP_Error('invalid_product', 'Product not found.', ['status' => 404]);
@@ -84,14 +97,17 @@ class Karta_Cart {
         if ($product->get_status() !== 'publish') {
             return new WP_Error('unavailable_product', 'Product is not available.', ['status' => 400]);
         }
-        if (!$product->is_purchasable()) {
-            return new WP_Error('unavailable_product', 'Product cannot be purchased.', ['status' => 400]);
-        }
 
-        // WooCommerce's own stock logic — respects the merchant's exact
-        // stock management settings (managed, unmanaged, backorders).
-        if (!$product->is_in_stock()) {
-            return new WP_Error('out_of_stock', 'Product is out of stock.', ['status' => 400]);
+        if ($unlimited_inventory) {
+            // Keep the price part of purchasability, skip the stock part —
+            // never blindly bypass all safety checks.
+            if ('' === $product->get_price()) {
+                return new WP_Error('unavailable_product', 'Product cannot be purchased.', ['status' => 400]);
+            }
+        } else {
+            if (!$product->is_purchasable()) {
+                return new WP_Error('unavailable_product', 'Product cannot be purchased.', ['status' => 400]);
+            }
         }
 
         // Variable products require a valid variation
@@ -104,7 +120,7 @@ class Karta_Cart {
             if (!$variation || (int) $variation->get_parent_id() !== $product_id) {
                 return new WP_Error('invalid_variation', 'Invalid product variation.', ['status' => 400]);
             }
-            if (!$variation->is_in_stock()) {
+            if (!$unlimited_inventory && !$variation->is_in_stock()) {
                 return new WP_Error('out_of_stock', 'Product variation is out of stock.', ['status' => 400]);
             }
             // Exact variation attributes (WooCommerce format) so the

@@ -15,6 +15,7 @@ model Tenant {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
+  inventoryMode String @default("unlimited") // unlimited | managed — Karta's own inventory policy
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -94,6 +95,7 @@ model Product {
   compareAtPrice Decimal? @db.Decimal(10, 2)
   stock          Int?     // null = stock not managed (available), 0 = out of stock
   stockStatus    String?  // WooCommerce stock status: instock | outofstock | onbackorder
+  manageStock    Boolean? // WooCommerce manage_stock (null = unknown/older payload)
   image          String?  // Primary image URL (from WooCommerce)
   images         Json?    // Additional image URLs (array of strings, from WooCommerce gallery)
   category       String?  // Product category name (from WooCommerce)

@@ -1,6 +1,8 @@
 import { getAIProvider } from "@/lib/ai/provider";
 import { getToolDefinitions, executeTool } from "@/lib/ai/commerce-tools";
 import { COMMERCE_SYSTEM_PROMPT } from "@/lib/ai/system-prompt";
+import { classifyProviderFailure } from "@/lib/ai/provider-error";
+import { recordProviderFailure } from "@/lib/ai/circuit-breaker";
 import type { UnifiedMessage } from "@/lib/channels/types";
 import type { AIMessage } from "@/lib/ai/types";
 
@@ -23,6 +25,8 @@ export interface EngineResult {
   success: boolean;
   error?: string;
   errorDetails?: string;
+  /** Sanitized provider error classification (AI_PROVIDER_RATE_LIMITED, ...) */
+  errorCode?: string;
 }
 
 export interface ToolCallRecord {
@@ -127,16 +131,25 @@ export async function processMessage(
       success: true,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("AI Engine error:", errorMessage);
+    // Classify the provider failure WITHOUT exposing secrets: 429 →
+    // AI_PROVIDER_RATE_LIMITED, 401/403 → auth, 5xx → unavailable, etc.
+    // Record it in the circuit breaker so bursts of customer messages
+    // do not create bursts of doomed provider calls.
+    const providerError = classifyProviderFailure(error);
+    recordProviderFailure(providerError.code, providerError.retryAfterMs);
+    console.error("[AI Provider]", {
+      code: providerError.code,
+      status: providerError.status ?? null,
+    });
 
     return {
       text: "Sorry, I'm experiencing some technical difficulties. Please try again in a moment.",
       conversationId: message.conversationId || "",
       toolCalls,
       success: false,
-      error: errorMessage,
+      error: providerError.message,
       errorDetails: error instanceof Error ? error.stack : undefined,
+      errorCode: providerError.code,
     };
   }
 }

@@ -102,6 +102,7 @@ const mockConnection = {
   siteUrl: SITE_URL,
   siteName: "BD Deals",
   status: "active",
+  tenant: { inventoryMode: "unlimited" },
 };
 
 // Simulated DB record with metadata (mutated by the mocked update)
@@ -117,6 +118,7 @@ const mockCatalog: CatalogProduct[] = [
     compareAtPrice: 2990,
     stock: 12,
     stockStatus: "instock",
+    manageStock: true,
     status: "active",
     image: "https://bd-deals.unaux.com/wp-content/uploads/watch.jpg",
     productUrl: `${SITE_URL}/product/luma-smart-watch/`,
@@ -150,6 +152,7 @@ const mockCatalog: CatalogProduct[] = [
     compareAtPrice: null,
     stock: 30,
     stockStatus: "instock",
+    manageStock: true,
     status: "active",
     image: null,
     productUrl: `${SITE_URL}/product/budget-keyboard/`,
@@ -164,8 +167,9 @@ const mockCatalog: CatalogProduct[] = [
     description: null,
     price: 1290,
     compareAtPrice: null,
-    stock: null, // stock management disabled — always available
+    stock: null, // stock management disabled - always available
     stockStatus: "instock",
+    manageStock: false,
     status: "active",
     image: null,
     productUrl: null,
@@ -181,7 +185,8 @@ const mockCatalog: CatalogProduct[] = [
     price: 900,
     compareAtPrice: null,
     stock: null, // quantity unknown...
-    stockStatus: "outofstock", // ...but WooCommerce says out of stock
+    stockStatus: "outofstock", // ...but WooCommerce says out of stock (manual, merchant-set)
+    manageStock: false,
     status: "active",
     image: null,
     productUrl: `${SITE_URL}/product/sold-out-item/`,
@@ -425,18 +430,20 @@ describe("stock semantics", () => {
   });
 
   it("stock=0 with managed stock means unavailable", () => {
-    expect(isProductAvailable({ ...mockCatalog[0], stock: 0 })).toBe(false);
-    expect(availabilityLabel({ ...mockCatalog[0], stock: 0 })).toBe("Out of stock");
+    expect(
+      isProductAvailable({ ...mockCatalog[0], stock: 0, manageStock: true }, "managed")
+    ).toBe(false);
+    expect(availabilityLabel({ ...mockCatalog[0], stock: 0, manageStock: true }, "managed")).toBe("Out of stock");
   });
 
-  it("stock>0 means available with count", () => {
-    expect(isProductAvailable(mockCatalog[0])).toBe(true);
-    expect(availabilityLabel(mockCatalog[0])).toBe("In stock (12)");
+  it("stock>0 means available with count (managed mode)", () => {
+    expect(isProductAvailable({ ...mockCatalog[0], manageStock: true }, "managed")).toBe(true);
+    expect(availabilityLabel({ ...mockCatalog[0], manageStock: true }, "managed")).toBe("In stock (12)");
   });
 
   it("explicit WooCommerce outofstock is unavailable even when quantity is null", () => {
-    expect(isProductAvailable(mockCatalog[3])).toBe(false);
-    expect(availabilityLabel(mockCatalog[3])).toBe("Out of stock");
+    expect(isProductAvailable(mockCatalog[3], "unlimited")).toBe(false);
+    expect(availabilityLabel(mockCatalog[3], "unlimited")).toBe("Out of stock");
   });
 
   it("null stock is never converted to 0 by the normalizer", () => {

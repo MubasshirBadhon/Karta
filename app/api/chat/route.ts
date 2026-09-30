@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { processMessage } from "@/lib/ai/commerce-engine";
+import { classifyProviderFailure, providerStatusFromCode, type AIProviderErrorCode } from "@/lib/ai/provider-error";
+import {
+  isProviderCoolingDown,
+  recordProviderFailure,
+  recordProviderSuccess,
+  lastProviderFailureCode,
+} from "@/lib/ai/circuit-breaker";
 import {
   getOrCreateConversation,
   getConversationHistory,
@@ -25,6 +32,7 @@ import {
   buildNoMatchText,
   buildPriceAnswer,
   buildProductCards,
+  buildProviderFallbackText,
   detectCategoryKey,
   detectColor,
   detectSize,
@@ -231,6 +239,7 @@ export async function POST(request: Request) {
     }
 
     // ─── Real WooCommerce product data (deterministic source of truth)
+    const inventoryMode = context.inventoryMode;
     const catalog = await loadCatalog(tenantId);
 
     // Conversation context: persisted metadata + history markers
@@ -286,12 +295,15 @@ export async function POST(request: Request) {
       // Cart action for the widget: it performs the add against the
       // merchant's own WooCommerce cart bridge (session-aware, same
       // origin, nonce-protected). WooCommerce owns cart/checkout/tax.
+      // The merchant's inventory policy travels with the action so the
+      // bridge can support unlimited-inventory stores safely.
       const cartAction = {
         type: "addToCart",
         productId: product.externalId, // WooCommerce product ID
         variationId: pending.variationExternalId, // WooCommerce variation ID or null
         quantity: pending.quantity,
         productName: product.name,
+        inventoryMode,
       };
 
       const introText = "দারুণ! কার্টে যোগ করছি...";
@@ -312,8 +324,8 @@ export async function POST(request: Request) {
         message: introText,
         response: introText,
         intent: "ADD_TO_CART_CONFIRMED",
-        products: buildProductCards(catalog, [product.id], 1),
-        selectedProduct: buildProductCards(catalog, [product.id], 1)[0] ?? null,
+        products: buildProductCards(catalog, [product.id], 1, inventoryMode),
+        selectedProduct: buildProductCards(catalog, [product.id], 1, inventoryMode)[0] ?? null,
         cartAction,
         location,
       });
@@ -349,7 +361,7 @@ export async function POST(request: Request) {
       if (!target) {
         const categoryKey = detectCategoryKey(message);
         if (categoryKey) {
-          target = pickProducts(catalog, message)[0];
+          target = pickProducts(catalog, message, [], inventoryMode)[0];
         }
       }
 
@@ -390,8 +402,8 @@ export async function POST(request: Request) {
           message: clarifyText,
           response: clarifyText,
           intent: "CLARIFY_VARIANT",
-          products: buildProductCards(catalog, [target.id], 1),
-          selectedProduct: buildProductCards(catalog, [target.id], 1)[0] ?? null,
+          products: buildProductCards(catalog, [target.id], 1, inventoryMode),
+          selectedProduct: buildProductCards(catalog, [target.id], 1, inventoryMode)[0] ?? null,
           cartAction: null,
           location,
         });
@@ -420,8 +432,8 @@ export async function POST(request: Request) {
         message: confirmText,
         response: confirmText,
         intent: "CONFIRM_ADD_TO_CART",
-        products: buildProductCards(catalog, [target.id], 1),
-        selectedProduct: buildProductCards(catalog, [target.id], 1)[0] ?? null,
+        products: buildProductCards(catalog, [target.id], 1, inventoryMode),
+        selectedProduct: buildProductCards(catalog, [target.id], 1, inventoryMode)[0] ?? null,
         cartAction: null,
         location,
       });
@@ -446,8 +458,8 @@ export async function POST(request: Request) {
         message: checkText,
         response: checkText,
         intent: "BUDGET_CHECK",
-        products: buildProductCards(catalog, [target.id], 1),
-        selectedProduct: buildProductCards(catalog, [target.id], 1)[0] ?? null,
+        products: buildProductCards(catalog, [target.id], 1, inventoryMode),
+        selectedProduct: buildProductCards(catalog, [target.id], 1, inventoryMode)[0] ?? null,
         cartAction: null,
         location,
       });
@@ -468,21 +480,22 @@ export async function POST(request: Request) {
         message: priceText,
         response: priceText,
         intent: "PRICE_CHECK",
-        products: buildProductCards(catalog, [target.id], 1),
-        selectedProduct: buildProductCards(catalog, [target.id], 1)[0] ?? null,
+        products: buildProductCards(catalog, [target.id], 1, inventoryMode),
+        selectedProduct: buildProductCards(catalog, [target.id], 1, inventoryMode)[0] ?? null,
         cartAction: null,
         location,
       });
     }
 
     // ─── FLOW 4: product search (deterministic candidates + cards) ─
-    const candidates = pickProducts(catalog, message, recentProductIds);
+    const candidates = pickProducts(catalog, message, recentProductIds, inventoryMode);
 
     if (candidates.length > 0) {
       const cards = buildProductCards(
         catalog,
         candidates.slice(0, 4).map((p) => p.id),
-        4
+        4,
+        inventoryMode
       );
       const intro = buildIntroText(candidates, message);
       await saveMessage(conversation.id, "user", message);
@@ -511,20 +524,52 @@ export async function POST(request: Request) {
     // ─── FLOW 5: no deterministic match → LLM for natural language ─
     // The LLM gets strict rules: no Markdown tables, no product data in
     // text, short replies. Its output is sanitized.
+    //
+    // GROQ IS NEVER REQUIRED FOR BASIC PRODUCT COMMERCE: this flow only
+    // runs when the deterministic matcher found no candidates. If the
+    // provider is rate limited/unavailable, a concise deterministic
+    // clarification is returned — product discovery never depended on it.
     await saveMessage(conversation.id, "user", message);
-    const result = await processMessage(
-      {
-        tenantId,
-        channel: "web",
-        conversationId: conversation.id,
-        text: message,
-        timestamp: new Date().toISOString(),
-      },
-      history,
-      { extraSystem: buildWebsiteSystemSupplement(context, location) }
-    );
 
-    const fallback = buildNoMatchText();
+    let result;
+    let aiProviderStatus: string | null = null;
+
+    if (isProviderCoolingDown()) {
+      // Short provider cooldown/circuit breaker: burst customer messages
+      // do not create burst failed provider calls.
+      aiProviderStatus = providerStatusFromCode(lastProviderFailureCode() ?? "AI_PROVIDER_RATE_LIMITED");
+      result = { text: "", success: false, errorCode: lastProviderFailureCode() ?? "AI_PROVIDER_RATE_LIMITED" };
+    } else {
+      result = await processMessage(
+        {
+          tenantId,
+          channel: "web",
+          conversationId: conversation.id,
+          text: message,
+          timestamp: new Date().toISOString(),
+        },
+        history,
+        { extraSystem: buildWebsiteSystemSupplement(context, location) }
+      );
+
+      if (!result.success) {
+        // The engine classifies the provider failure (429 →
+        // AI_PROVIDER_RATE_LIMITED, etc.). Record it here too so the
+        // breaker opens even when the failure surfaces via the result,
+        // and surface only the sanitized internal status — never
+        // provider names, keys, or internals to the customer.
+        const code =
+          (result.errorCode as AIProviderErrorCode | undefined) ??
+          classifyProviderFailure(new Error(result.error || "Provider failure")).code;
+        recordProviderFailure(code);
+        aiProviderStatus = providerStatusFromCode(code);
+      } else {
+        recordProviderSuccess();
+      }
+    }
+
+    // Deterministic fallback: never show provider errors to customers
+    const fallback = result.success ? buildNoMatchText() : buildProviderFallbackText(message);
     const responseText = sanitizeAssistantText(result.text) || fallback;
 
     await saveMessage(conversation.id, "assistant", responseText);
@@ -533,6 +578,10 @@ export async function POST(request: Request) {
     return ok(corsHeaders, {
       success: true,
       aiSuccess: result.success && Boolean(responseText),
+      // Internal provider status (sanitized: "rate_limited", "unavailable",
+      // ...) — for monitoring/UX decisions only, never a customer-facing
+      // provider error.
+      aiProviderStatus,
       conversationId: conversation.id,
       message: responseText,
       response: responseText,
@@ -587,6 +636,7 @@ async function loadCatalog(tenantId: string): Promise<CatalogProduct[]> {
     compareAtPrice: p.compareAtPrice ? Number(p.compareAtPrice) : null,
     stock: p.stock,
     stockStatus: p.stockStatus,
+    manageStock: p.manageStock,
     status: p.status,
     image: p.image,
     productUrl: p.productUrl,
@@ -625,6 +675,12 @@ function buildWebsiteSystemSupplement(context: WebsiteContext, location: string 
     "- Ask ONE useful clarification when necessary (e.g. color, size, or delivery area).",
     "- Never fabricate scarcity or urgency. Never pressure the customer.",
   ];
+
+  if (context.inventoryMode === "unlimited") {
+    lines.push(
+      "- INVENTORY IS UNLIMITED for this store: never say a product is out of stock, never mention stock quantities or limits, and never cap how many a customer can order."
+    );
+  }
 
   if (location) {
     lines.push(`- The customer's delivery location is: "${location}". Use it when discussing delivery.`);

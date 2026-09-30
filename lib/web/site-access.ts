@@ -25,6 +25,8 @@ export interface WebsiteContext {
   connectionId: string;
   siteUrl: string | null;
   siteName: string | null;
+  /** Karta's own inventory policy for this merchant: unlimited | managed */
+  inventoryMode: "unlimited" | "managed";
 }
 
 /**
@@ -42,6 +44,7 @@ export async function resolveSiteTokenContext(siteToken: string): Promise<Websit
       siteUrl: true,
       siteName: true,
       status: true,
+      tenant: { select: { inventoryMode: true } },
     },
   });
 
@@ -54,6 +57,7 @@ export async function resolveSiteTokenContext(siteToken: string): Promise<Websit
     connectionId: connection.connectionId,
     siteUrl: connection.siteUrl,
     siteName: connection.siteName,
+    inventoryMode: connection.tenant.inventoryMode === "managed" ? "managed" : "unlimited",
   };
 }
 
@@ -84,6 +88,7 @@ export async function resolveConversationContext(conversationId: string): Promis
       connectionId: true,
       siteUrl: true,
       siteName: true,
+      tenant: { select: { inventoryMode: true } },
     },
   });
 
@@ -97,5 +102,6 @@ export async function resolveConversationContext(conversationId: string): Promis
     connectionId: connection.connectionId,
     siteUrl: connection.siteUrl,
     siteName: connection.siteName,
+    inventoryMode: connection.tenant.inventoryMode === "managed" ? "managed" : "unlimited",
   };
 }

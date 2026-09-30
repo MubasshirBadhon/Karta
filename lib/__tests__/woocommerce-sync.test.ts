@@ -40,6 +40,7 @@ describe("WooCommerce Sync", () => {
     category: null,
     productUrl: null,
     stockStatus: null,
+    manageStock: null,
     status: "active",
     type: "simple",
     variations: [],

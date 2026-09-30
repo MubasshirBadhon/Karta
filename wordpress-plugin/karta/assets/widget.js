@@ -494,6 +494,7 @@
         productId: action.productId,
         variationId: action.variationId || 0,
         quantity: action.quantity || 1,
+        inventoryMode: action.inventoryMode || "unlimited",
       }),
     })
       .then(function (response) {

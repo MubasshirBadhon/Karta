@@ -1,4 +1,5 @@
 import { AIProvider, AIRequest, AIResponse } from "./types";
+import { classifyProviderFailure } from "./provider-error";
 
 /**
  * Groq AI Provider
@@ -6,6 +7,12 @@ import { AIProvider, AIRequest, AIResponse } from "./types";
  * Implementation of the AIProvider interface using Groq's API.
  * The API key is read from the GROQ_API_KEY environment variable
  * and is only accessible server-side.
+ *
+ * NOTE ON MULTIPLE KEYS: This implementation works correctly with ONE
+ * Groq key. Additional keys can be configured later via the provider
+ * abstraction (see provider.ts), but do NOT assume each key multiplies
+ * the free-tier limit — rate limits are typically per ORGANIZATION,
+ * so multiple keys from the same organization share one quota.
  */
 export class GroqProvider implements AIProvider {
   private apiKey: string;
@@ -15,9 +22,11 @@ export class GroqProvider implements AIProvider {
   constructor() {
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) {
-      throw new Error(
+      const error = new Error(
         "GROQ_API_KEY is not set. Add it to your .env file."
-      );
+      ) as Error & { code: string };
+      error.code = "AI_PROVIDER_NO_KEY";
+      throw error;
     }
     this.apiKey = apiKey;
   }
@@ -39,27 +48,45 @@ export class GroqProvider implements AIProvider {
       body.tools = input.tools;
     }
 
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-      },
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+      });
+    } catch (error) {
+      // Network failure or timeout — classified, no secrets in the message
+      throw classifyProviderFailure(error);
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(
-        `Groq API error (${response.status}): ${errorText}`
-      );
+      const retryAfter = response.headers.get("retry-after");
+
+      // Log sanitized provider status server-side (status + retry-after
+      // only — never the API key, request bodies, or provider internals).
+      // Rate-limit headers are read but NOT exposed to the browser.
+      console.error("[AI Provider]", {
+        status: response.status,
+        retryAfter: retryAfter ?? null,
+        rateLimitRemaining: response.headers.get("x-ratelimit-remaining-requests") ?? null,
+      });
+
+      throw classifyProviderFailure(new Error(`Groq API error (${response.status}): ${errorText.slice(0, 200)}`), {
+        status: response.status,
+        retryAfter,
+      });
     }
 
     const data = await response.json();
 
     const choice = data.choices?.[0];
     if (!choice) {
-      throw new Error("Groq API returned no choices");
+      throw classifyProviderFailure(new Error("Groq API returned no choices"));
     }
 
     const message = choice.message;

@@ -89,6 +89,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         category: product.category === undefined ? undefined : product.category,
         productUrl: product.productUrl === undefined ? undefined : product.productUrl,
         stockStatus: product.stockStatus === undefined ? undefined : product.stockStatus,
+        manageStock: product.manageStock === undefined ? undefined : product.manageStock,
         status: product.status,
       },
     });
@@ -120,6 +121,7 @@ async function upsertProduct(tenantId: string, product: NormalizedProduct): Prom
         category: product.category ?? undefined,
         productUrl: product.productUrl ?? undefined,
         stockStatus: product.stockStatus ?? undefined,
+        manageStock: product.manageStock ?? undefined,
         status: product.status,
       },
     });
