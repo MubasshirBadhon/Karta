@@ -109,7 +109,8 @@ model Product {
   variants  ProductVariant[]
   orderItems OrderItem[]
 
-  @@unique([tenantId, wooConnectionId, slug])
+  @@unique([tenantId, slug])
+  @@unique([tenantId, externalId])
   @@unique([tenantId, wooConnectionId, externalId])
   @@index([tenantId])
   @@index([wooConnectionId])

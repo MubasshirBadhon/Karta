@@ -82,10 +82,8 @@ describe("WooCommerce Sync", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       } as AnyMock);
-      vi.mocked(prisma.product.findFirst).mockResolvedValue({
-        id: "prod-1",
-        createdAt: new Date(), // Just created
-      } as AnyMock);
+      // No legacy row (findFirst unmocked) — the upsert creates a new row
+      // and reports "created" directly (the outcome comes from the upsert).
 
       const result = await syncProducts("tenant-1", "conn-1", [mockProduct]);
 
@@ -134,10 +132,7 @@ describe("WooCommerce Sync", () => {
 
       vi.mocked(prisma.product.findUnique).mockResolvedValue(existingProduct as AnyMock);
       vi.mocked(prisma.product.update).mockResolvedValue({ ...existingProduct, name: "Test Product" } as AnyMock);
-      vi.mocked(prisma.product.findFirst).mockResolvedValue({
-        id: "prod-1",
-        createdAt: new Date(Date.now() - 86400000),
-      } as AnyMock);
+      // The upsert reports "updated" directly (no second lookup needed)
 
       const result = await syncProducts("tenant-1", "conn-1", [mockProduct]);
 
@@ -191,10 +186,7 @@ describe("WooCommerce Sync", () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       } as AnyMock);
-      vi.mocked(prisma.product.findFirst).mockResolvedValue({
-        id: "prod-2",
-        createdAt: new Date(),
-      } as AnyMock);
+      // No legacy row (findFirst unmocked) — a new product is created
 
       const result = await syncProducts("tenant-1", "conn-1", [variableProduct]);
 
@@ -314,42 +306,51 @@ describe("WooCommerce Sync", () => {
 
   describe("connection-scoped product identity", () => {
     it("two Woo connections can safely use the same external product ID (h)", async () => {
-      // Connection A has an archived row for externalId 123; connection B
-      // syncs the same external ID — a NEW row scoped to B is created.
-      vi.mocked(prisma.product.findUnique).mockResolvedValue(null); // no (T, B, 123) row
-      vi.mocked(prisma.product.create).mockResolvedValue({ id: "prod-new" } as AnyMock);
+      // (T, B, 123) doesn't exist; a legacy row (T, NULL, 123) from the old
+      // connection DOES exist — the upsert ADOPTS it (updates in place,
+      // explicitly matched by the current sync), never creating a duplicate.
+      vi.mocked(prisma.product.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.product.findFirst).mockResolvedValue({
+        id: "prod-legacy",
+        tenantId: "tenant-1",
+        externalId: "123",
+        wooConnectionId: null,
+        status: "archived",
+        variants: [],
+      } as AnyMock);
+      vi.mocked(prisma.product.update).mockResolvedValue({} as AnyMock);
 
       const result = await syncProducts("tenant-1", "conn-B", [mockProduct]);
 
-      expect(result.created).toBe(1);
-      // The lookup was scoped to conn-B — it did NOT match conn-A's row
-      expect(prisma.product.findUnique).toHaveBeenCalledWith(
+      expect(result.updated).toBe(1); // adopted, not duplicated
+      expect(result.created).toBe(0);
+      expect(prisma.product.create).not.toHaveBeenCalled();
+      // The legacy row is claimed for conn-B and reactivated (the current
+      // sync explicitly matched it to the live catalog)
+      expect(prisma.product.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: {
-            tenantId_wooConnectionId_externalId: {
-              tenantId: "tenant-1",
-              wooConnectionId: "conn-B",
-              externalId: "123",
-            },
-          },
+          where: { id: "prod-legacy" },
+          data: expect.objectContaining({ wooConnectionId: "conn-B" }),
         })
       );
     });
 
     it("reconnecting does not resurrect unrelated archived products (j)", async () => {
-      // Connection B's sync upserts (T, B, 123): findUnique is scoped to B
-      // and never matches conn-A's archived row — no resurrection.
+      // conn-B syncs externalId 999 (a NEW product) — the legacy lookup
+      // for 999 finds nothing (unrelated archived rows have different
+      // external IDs) → a new row is created; no archived row is touched.
       vi.mocked(prisma.product.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.product.findFirst).mockResolvedValue(null);
       vi.mocked(prisma.product.create).mockResolvedValue({ id: "prod-new" } as AnyMock);
 
-      await syncProducts("tenant-1", "conn-B", [mockProduct]);
+      const differentProduct = { ...mockProduct, externalId: "999" };
 
-      // The only write is a CREATE scoped to conn-B — no update to any
-      // archived row from another connection
+      await syncProducts("tenant-1", "conn-B", [differentProduct]);
+
       expect(prisma.product.update).not.toHaveBeenCalled();
       expect(prisma.product.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ wooConnectionId: "conn-B", status: "active" }),
+          data: expect.objectContaining({ wooConnectionId: "conn-B", externalId: "999" }),
         })
       );
     });

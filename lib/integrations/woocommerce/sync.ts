@@ -58,14 +58,23 @@ export async function syncProducts(
 
 /**
  * Upsert a single product and its variants, scoped to the Woo connection.
- * Returns "created" or "updated" so the caller doesn't need a second lookup.
+ * Returns "created" or "updated".
+ *
+ * ADOPTION: if no row exists for (tenantId, wooConnectionId, externalId)
+ * but a row with the same externalId exists under a previous/legacy
+ * connection, that row is EXPLICITLY matched to the current connection
+ * (the current sync saw the product in the live catalog) and claimed:
+ * it is updated in place — never duplicated. Archived rows are only
+ * resurrected this way (an explicit current-catalog match); rows the
+ * current sync did NOT see stay archived and are handled by
+ * reconciliation instead.
  */
 async function upsertProduct(
   tenantId: string,
   wooConnectionId: string,
   product: NormalizedProduct
 ): Promise<"created" | "updated"> {
-  const existing = await prisma.product.findUnique({
+  let existing = await prisma.product.findUnique({
     where: {
       tenantId_wooConnectionId_externalId: {
         tenantId,
@@ -76,13 +85,26 @@ async function upsertProduct(
     include: { variants: true },
   });
 
+  if (!existing) {
+    // Adoption: claim the legacy row for this connection (it is
+    // explicitly matched by the current sync)
+    const legacy = await prisma.product.findFirst({
+      where: { tenantId, externalId: product.externalId },
+      include: { variants: true },
+    });
+    if (legacy) {
+      existing = legacy;
+    }
+  }
+
   if (existing) {
-    // Update existing product.
+    // Update existing product in place (claiming it for this connection).
     // New fields use undefined when not provided (older plugin versions)
     // so existing synced values are never wiped.
     await prisma.product.update({
       where: { id: existing.id },
       data: {
+        wooConnectionId,
         name: product.name,
         slug: product.slug,
         description: product.description,
@@ -117,8 +139,8 @@ async function upsertProduct(
     return "updated";
   }
 
-  // Create new product (scoped to this Woo connection). Legacy rows from
-  // other/previous connections are never matched or resurrected here.
+  // Create new product (scoped to this Woo connection) — only for
+  // external IDs never seen before under any connection.
   const newProduct = await prisma.product.create({
     data: {
       tenantId,
