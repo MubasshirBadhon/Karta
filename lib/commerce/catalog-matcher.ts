@@ -89,7 +89,7 @@ const COLOR_WORDS: Record<string, string[]> = {
 };
 
 const SIZE_PATTERN =
-  /(?:^|\s)(?:size\s*)?(xxs|xs|s|m|l|xl|xxl|2xl|3xl|small|medium|large|\d{2}(?:\.\d)?)(?:\s|$|\b)/i;
+  /(?:^|\s)(?:size\s*)?(xxs|xs|s|m|l|xl|xxl|2xl|3xl|small|medium|large|\d{2}(?:\.\d)?)(?!\s*(?:tk|taka|takar|টাকা|টাকার))(?:\s|$|\b)/i;
 
 // ─── Product input shape (from Prisma, with variants) ─────────
 

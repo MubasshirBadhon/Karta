@@ -633,6 +633,14 @@ describe("category / color / variant matching", () => {
     expect(detectSize("XL chai")).toBe("xl");
   });
 
+  it("does not mistake budget amounts for sizes", () => {
+    // "10 takar moddhe" is a budget query, not a size reference
+    expect(detectSize("10 takar moddhe ki ache?")).toBeNull();
+    expect(detectSize("500 theke 1000 taka")).toBeNull();
+    // ...but real size mentions still work alongside budgets
+    expect(detectSize("size 42 under 1000 taka")).toBe("42");
+  });
+
   it("resolves the exact variation deterministically ('black ta dekhaw')", () => {
     const variant = resolveVariant(mockCatalog[0], { color: "black", size: null });
     expect(variant).not.toBeNull();
