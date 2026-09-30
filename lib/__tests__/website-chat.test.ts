@@ -735,6 +735,29 @@ describe("add-to-cart confirmation flow", () => {
     expect(data.cartAction).toBeNull();
   });
 
+  it("an explicit card target overrides a stale pending confirmation", async () => {
+    // A pending confirmation exists from earlier (the mug)
+    conversationRecord.metadata = {
+      selectedProductId: "prod-budget-1",
+      pendingCart: { productId: "prod-stale-mug", variationId: null, variationExternalId: null, quantity: 1 },
+    };
+
+    // The customer clicks Add on the T-shirt card — the explicit target
+    // supersedes the stale pending confirmation
+    const res = await POST(
+      makePostRequest(
+        { message: "add this to cart", targetProductId: "prod-budget-1", siteToken: SITE_TOKEN },
+        SITE_URL
+      )
+    );
+    const data = await res.json();
+
+    expect(data.intent).toBe("CONFIRM_ADD_TO_CART");
+    expect(data.selectedProduct.id).toBe("prod-budget-1");
+    // The pending cart is replaced with the explicitly chosen product
+    expect(conversationRecord.metadata.pendingCart.productId).toBe("prod-budget-1");
+  });
+
   it("returns the correct WooCommerce product ID after confirmation", async () => {
     // First: the add-to-cart intent stores the pending cart
     conversationRecord.metadata = { selectedProductId: "prod-watch-1" };

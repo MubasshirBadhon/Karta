@@ -333,7 +333,9 @@ export async function POST(request: Request) {
     }
 
     // ─── FLOW 2: add-to-cart intent → resolve exact product/variant ─
-    if (wantsToAddToCart(message) && !metadata.pendingCart) {
+    // An explicit target (a card click) overrides any pending confirmation —
+    // the customer's newest explicit intent supersedes the pending one.
+    if (wantsToAddToCart(message) && (!metadata.pendingCart || targetProductId)) {
       await saveMessage(conversation.id, "user", message);
 
       const quantity = extractQuantity(message);
