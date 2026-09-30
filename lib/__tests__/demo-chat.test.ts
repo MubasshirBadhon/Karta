@@ -139,6 +139,8 @@ describe("Demo Chat Site Token", () => {
       const resolvedTenantId = mockConnection.tenantId;
 
       expect(resolvedTenantId).toBe("tenant-demo");
+      // The site token is the public connection identifier (not a secret)
+      expect(siteToken).toBe(mockConnection.connectionId);
     });
 
     it("should reject invalid siteToken", async () => {
