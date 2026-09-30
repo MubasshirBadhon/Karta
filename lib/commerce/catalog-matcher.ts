@@ -378,6 +378,30 @@ export function isConfirmation(message: string): boolean {
   return CONFIRMATION_PATTERN.test(String(message || "").trim());
 }
 
+/**
+ * Detect a generic product query ("ki ki product ache?", "what do you
+ * have", "show me everything") — a product-intent signal even without a
+ * specific category/budget.
+ */
+const GENERIC_PRODUCT_QUERY_PATTERN =
+  /(?:product|ponno|পণ্য|ki ache|কি আছে|কী আছে|kiki ache|what do you have|what do you sell|what(?:'s| is) available|available items|stock e|kothay)/i;
+
+/**
+ * Does the message show product-commerce intent (vs a general question)?
+ * Used to gate the deterministic product flow: general questions go to
+ * the LLM; product queries are handled deterministically.
+ */
+export function hasProductSignal(message: string): boolean {
+  return (
+    detectCategoryKey(message) !== null ||
+    extractBudgetRange(message) !== null ||
+    detectColor(message) !== null ||
+    detectSize(message) !== null ||
+    referencesRecentProduct(message) ||
+    GENERIC_PRODUCT_QUERY_PATTERN.test(String(message || ""))
+  );
+}
+
 // ─── Conversation follow-up context ──────────────────────────
 
 const PRODUCT_MARKER_PATTERN = /\[PRODUCT:([^\]]+)\]/g;

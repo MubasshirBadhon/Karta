@@ -40,6 +40,7 @@ import {
   extractProductIdsFromHistory,
   extractQuantity,
   findProductByName,
+  hasProductSignal,
   isConfirmation,
   isGreeting,
   pickProducts,
@@ -443,8 +444,15 @@ export async function POST(request: Request) {
     const range = extractBudgetRange(message);
     const priceQuestion = /(?:\bdam\b|\bprice\b|\bkoto\b|কত|দাম|kothay pabo|পাবো)/i.test(message);
 
-    if (recentProducts.length && range && range.max !== null) {
+    if (
+      recentProducts.length &&
+      range &&
+      range.max !== null &&
+      referencesRecentProduct(message)
+    ) {
       // Deterministic budget check against the discussed product
+      // ("eta 1000 takar moddhe?") — only when the message actually
+      // references it; bare budget queries are product searches.
       const target = recentProducts[0];
       const variant = resolveVariant(target, { color: detectColor(message), size: detectSize(message) });
       const checkText = buildBudgetCheckText(target, variant, range.max);
@@ -488,40 +496,62 @@ export async function POST(request: Request) {
     }
 
     // ─── FLOW 4: product search (deterministic candidates + cards) ─
-    const candidates = pickProducts(catalog, message, recentProductIds, inventoryMode);
+    // Gated on product-commerce intent: general questions (delivery,
+    // small talk) go to the LLM instead of dumping the catalog.
+    if (hasProductSignal(message)) {
+      const candidates = pickProducts(catalog, message, recentProductIds, inventoryMode);
 
-    if (candidates.length > 0) {
-      const cards = buildProductCards(
-        catalog,
-        candidates.slice(0, 4).map((p) => p.id),
-        4,
-        inventoryMode
-      );
-      const intro = buildIntroText(candidates, message);
+      if (candidates.length > 0) {
+        const cards = buildProductCards(
+          catalog,
+          candidates.slice(0, 4).map((p) => p.id),
+          4,
+          inventoryMode
+        );
+        const intro = buildIntroText(candidates, message);
+        await saveMessage(conversation.id, "user", message);
+        const storedAssistant = `${intro}\n${cards.map((c) => `[PRODUCT:${c.id}]`).join("\n")}`;
+        await saveMessage(conversation.id, "assistant", storedAssistant);
+        await persistMetadata(conversation.id, {
+          ...metadata,
+          selectedProductId: candidates[0].id,
+          location,
+        });
+
+        return ok(corsHeaders, {
+          success: true,
+          aiSuccess: true,
+          conversationId: conversation.id,
+          message: intro,
+          response: intro,
+          intent: referencesRecentProduct(message) ? "FOLLOW_UP" : "PRODUCT_SEARCH",
+          products: cards,
+          selectedProduct: cards[0] ?? null,
+          cartAction: null,
+          location,
+        });
+      }
+
+      // Specific product signal (category/budget/color/size/name/follow-up)
+      // but no matching products → deterministic no-match, no LLM needed.
       await saveMessage(conversation.id, "user", message);
-      const storedAssistant = `${intro}\n${cards.map((c) => `[PRODUCT:${c.id}]`).join("\n")}`;
-      await saveMessage(conversation.id, "assistant", storedAssistant);
-      await persistMetadata(conversation.id, {
-        ...metadata,
-        selectedProductId: candidates[0].id,
-        location,
-      });
-
+      await saveMessage(conversation.id, "assistant", buildNoMatchText());
+      await persistMetadata(conversation.id, { ...metadata, location });
       return ok(corsHeaders, {
         success: true,
         aiSuccess: true,
         conversationId: conversation.id,
-        message: intro,
-        response: intro,
-        intent: referencesRecentProduct(message) ? "FOLLOW_UP" : "PRODUCT_SEARCH",
-        products: cards,
-        selectedProduct: cards[0] ?? null,
+        message: buildNoMatchText(),
+        response: buildNoMatchText(),
+        intent: "NO_MATCH",
+        products: [],
+        selectedProduct: null,
         cartAction: null,
         location,
       });
     }
 
-    // ─── FLOW 5: no deterministic match → LLM for natural language ─
+    // ─── FLOW 5: general question → LLM for natural language ─
     // The LLM gets strict rules: no Markdown tables, no product data in
     // text, short replies. Its output is sanitized.
     //

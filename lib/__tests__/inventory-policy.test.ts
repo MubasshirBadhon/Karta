@@ -337,8 +337,8 @@ describe("product commerce without Groq", () => {
   });
 
   it("when the LLM path fails with 429, a deterministic clarification is returned", async () => {
-    // A message with no deterministic candidates (budget matches nothing)
-    // reaches the LLM path; a 429 must return a deterministic fallback.
+    // A general question (no product signal) reaches the LLM path; a 429
+    // must return a deterministic fallback.
     // The engine catches provider failures internally and returns
     // success:false with a sanitized errorCode (it never throws).
     mockedProcessMessage.mockResolvedValue({
@@ -349,7 +349,7 @@ describe("product commerce without Groq", () => {
     });
 
     const res = await POST(
-      makePostRequest({ message: "10 takar moddhe ki ache?", siteToken: SITE_TOKEN }, SITE_URL)
+      makePostRequest({ message: "do you offer home delivery?", siteToken: SITE_TOKEN }, SITE_URL)
     );
     const data = await res.json();
 
@@ -357,6 +357,7 @@ describe("product commerce without Groq", () => {
     expect(data.success).toBe(true);
     expect(data.aiSuccess).toBe(false);
     expect(data.aiProviderStatus).toBe("rate_limited");
+    expect(data.intent).toBe("GENERAL");
     expect(data.message).not.toContain("could not connect");
     expect(data.message).not.toContain("Groq");
     expect(data.message).not.toContain("429");
@@ -441,8 +442,9 @@ describe("provider error classification", () => {
 
 describe("provider circuit breaker", () => {
   it("records rate-limit failures so bursts do not create doomed provider calls", async () => {
-    // First message: LLM path fails with 429 (no deterministic candidates).
-    // The engine returns success:false + errorCode (it catches internally).
+    // First message: a general question (no product signal) reaches the
+    // LLM path, which fails with 429. The engine returns success:false +
+    // errorCode (it catches internally).
     mockedProcessMessage.mockResolvedValue({
       text: "",
       success: false,
@@ -451,7 +453,7 @@ describe("provider circuit breaker", () => {
     });
 
     const res1 = await POST(
-      makePostRequest({ message: "10 takar moddhe ki ache?", siteToken: SITE_TOKEN }, SITE_URL)
+      makePostRequest({ message: "do you offer home delivery?", siteToken: SITE_TOKEN }, SITE_URL)
     );
     expect(res1.status).toBe(200);
     const d1 = await res1.json();
@@ -461,7 +463,7 @@ describe("provider circuit breaker", () => {
     // provider is NOT called again; the deterministic fallback answers.
     mockedProcessMessage.mockClear();
     const res2 = await POST(
-      makePostRequest({ message: "20 takar moddhe ki ache?", siteToken: SITE_TOKEN }, SITE_URL)
+      makePostRequest({ message: "how is your day going?", siteToken: SITE_TOKEN }, SITE_URL)
     );
     expect(res2.status).toBe(200);
     const d2 = await res2.json();

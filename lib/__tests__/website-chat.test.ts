@@ -818,11 +818,11 @@ describe("location persistence", () => {
     ]);
     conversationRecord.metadata = { location: "Dhaka" };
 
-    // A query that reaches the LLM path (budget matches no products);
+    // A general question (no product signal) reaches the LLM path;
     // the persisted location must reach the AI supplement unchanged.
     const res = await POST(
       makePostRequest(
-        { message: "delivery cost koto 10 taka budget?", conversationId: "conv-1", siteToken: SITE_TOKEN },
+        { message: "do you offer home delivery?", conversationId: "conv-1", siteToken: SITE_TOKEN },
         SITE_URL
       )
     );
