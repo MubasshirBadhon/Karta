@@ -109,9 +109,12 @@ model Product {
   variants  ProductVariant[]
   orderItems OrderItem[]
 
+  // Identity: one product per (tenantId, externalId) — enforced by the
+  // unique constraints below. Connection scoping is handled in the sync
+  // layer (adoption/claiming) and this index makes the scoped lookup fast.
   @@unique([tenantId, slug])
   @@unique([tenantId, externalId])
-  @@unique([tenantId, wooConnectionId, externalId])
+  @@index([tenantId, wooConnectionId, externalId])
   @@index([tenantId])
   @@index([wooConnectionId])
   @@map("products")

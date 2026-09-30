@@ -516,6 +516,8 @@ describe("productUrl and imageUrl persistence", () => {
 
   it("sync persists productUrl/images/category/stockStatus on create", async () => {
     mockedPrisma.product.findUnique.mockResolvedValue(null);
+    // No legacy row — the product is genuinely new
+    mockedPrisma.product.findFirst.mockResolvedValue(null);
     mockedPrisma.product.create.mockResolvedValue({ id: "prod-new" });
 
     await syncProducts("tenant-1", "conn-1", [
@@ -546,7 +548,7 @@ describe("productUrl and imageUrl persistence", () => {
   });
 
   it("sync does not wipe existing fields when the payload omits them", async () => {
-    mockedPrisma.product.findUnique.mockResolvedValue({
+    mockedPrisma.product.findFirst.mockResolvedValue({
       id: "prod-1",
       tenantId: "tenant-1",
       externalId: "201",

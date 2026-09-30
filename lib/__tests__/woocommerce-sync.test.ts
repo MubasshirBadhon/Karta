@@ -91,15 +91,13 @@ describe("WooCommerce Sync", () => {
       expect(result.updated).toBe(0);
       expect(result.failed).toBe(0);
       expect(prisma.product.create).toHaveBeenCalled();
-      // Identity is scoped to the Woo connection
-      expect(prisma.product.findUnique).toHaveBeenCalledWith(
+      // Identity is scoped to the Woo connection (the scoped lookup)
+      expect(prisma.product.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
-            tenantId_wooConnectionId_externalId: {
-              tenantId: "tenant-1",
-              wooConnectionId: "conn-1",
-              externalId: "123",
-            },
+            tenantId: "tenant-1",
+            wooConnectionId: "conn-1",
+            externalId: "123",
           },
         })
       );
@@ -130,9 +128,10 @@ describe("WooCommerce Sync", () => {
         variants: [],
       };
 
-      vi.mocked(prisma.product.findUnique).mockResolvedValue(existingProduct as AnyMock);
+      vi.mocked(prisma.product.findFirst).mockResolvedValue(existingProduct as AnyMock);
       vi.mocked(prisma.product.update).mockResolvedValue({ ...existingProduct, name: "Test Product" } as AnyMock);
-      // The upsert reports "updated" directly (no second lookup needed)
+      // The upsert looks up (tenantId, wooConnectionId, externalId) via
+      // findFirst and reports "updated" directly
 
       const result = await syncProducts("tenant-1", "conn-1", [mockProduct]);
 
@@ -143,7 +142,7 @@ describe("WooCommerce Sync", () => {
     });
 
     it("should handle sync failures gracefully", async () => {
-      vi.mocked(prisma.product.findUnique).mockRejectedValue(new Error("DB error"));
+      vi.mocked(prisma.product.findFirst).mockRejectedValue(new Error("DB error"));
 
       const result = await syncProducts("tenant-1", "conn-1", [mockProduct]);
 
@@ -170,6 +169,8 @@ describe("WooCommerce Sync", () => {
       };
 
       vi.mocked(prisma.product.findUnique).mockResolvedValue(null);
+      // No existing/legacy row — a new variable product is created
+      vi.mocked(prisma.product.findFirst).mockResolvedValue(null);
       vi.mocked(prisma.product.create).mockResolvedValue({
         id: "prod-2",
         tenantId: "tenant-1",

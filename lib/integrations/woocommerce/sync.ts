@@ -74,13 +74,11 @@ async function upsertProduct(
   wooConnectionId: string,
   product: NormalizedProduct
 ): Promise<"created" | "updated"> {
-  let existing = await prisma.product.findUnique({
+  let existing = await prisma.product.findFirst({
     where: {
-      tenantId_wooConnectionId_externalId: {
-        tenantId,
-        wooConnectionId,
-        externalId: product.externalId,
-      },
+      tenantId,
+      wooConnectionId,
+      externalId: product.externalId,
     },
     include: { variants: true },
   });
