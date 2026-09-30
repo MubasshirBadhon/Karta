@@ -110,9 +110,8 @@ async function main() {
 
     const existing = await prisma.product.findUnique({
       where: {
-        tenantId_wooConnectionId_externalId: {
+        tenantId_externalId: {
           tenantId: tenant.id,
-          wooConnectionId: connection.connectionId,
           externalId: product.externalId,
         },
       },
@@ -126,7 +125,7 @@ async function main() {
     const newProduct = await prisma.product.create({
       data: {
         tenantId: tenant.id,
-        wooConnectionId: connection.connectionId,
+        wooConnectionId,
         externalId: product.externalId,
         sku: product.sku,
         name: product.name,

@@ -509,11 +509,9 @@
       })
       .then(function (result) {
         if (result.ok && result.data && result.data.success) {
-          addMessage(
-            "bot",
-            (action.productName || "Product") + " added to cart \u2705 (" + (result.data.cartCount || 1) + " items)"
-          );
+          addCartSummary(action, result.data);
         } else {
+          // Surface the actual safe customer-facing reason — never claim success
           var message =
             result.data && result.data.message
               ? result.data.message
@@ -524,6 +522,47 @@
       .catch(function () {
         addMessage("bot", "Could not reach the cart. Please try again.", true);
       });
+  }
+
+  /**
+   * Compact cart summary: the added product, quantity, cart total,
+   * View Cart + Checkout (the actual WooCommerce pages).
+   */
+  function addCartSummary(action, result) {
+    var cart = result.cart || {};
+    var item = result.item || {};
+
+    var text =
+      (item.name || action.productName || "Product") +
+      " \u00D7 " +
+      (item.quantity || action.quantity || 1) +
+      (cart.total !== undefined
+        ? " — cart total " + money(cart.total)
+        : "");
+    if (cart.count !== undefined) {
+      text += " (" + cart.count + " items)";
+    }
+    addMessage("bot", text);
+
+    var row = el("div", "karta-msg-row karta-bot");
+    var panel = el("div", "karta-cart-panel");
+
+    if (result.cartUrl) {
+      var cartLink = el("a", "karta-cart-link karta-cart-view", "View Cart");
+      cartLink.href = result.cartUrl;
+      panel.appendChild(cartLink);
+    }
+    if (result.checkoutUrl) {
+      var checkoutLink = el("a", "karta-cart-link karta-cart-checkout", "Checkout");
+      checkoutLink.href = result.checkoutUrl;
+      panel.appendChild(checkoutLink);
+    }
+
+    if (panel.childNodes.length) {
+      row.appendChild(panel);
+      messagesEl.appendChild(row);
+      scrollToEnd();
+    }
   }
 
   // ─── Boot ────────────────────────────────────────────────────

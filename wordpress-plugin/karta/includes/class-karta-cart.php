@@ -27,6 +27,8 @@ class Karta_Cart {
 
     public static function init() {
         add_action('rest_api_init', [__CLASS__, 'register_rest_routes']);
+        // Cart-restore link for WhatsApp customers (?karta-cart=<token>)
+        add_action('template_redirect', [__CLASS__, 'handle_cart_restore']);
     }
 
     public static function register_rest_routes() {
@@ -150,10 +152,88 @@ class Karta_Cart {
             return new WP_Error('add_failed', 'Could not add the product to the cart.', ['status' => 500]);
         }
 
+        // Return the REAL WooCommerce cart state (Woo is the source of truth)
+        $added_product = wc_get_product($variation_id > 0 ? $variation_id : $product_id);
+
         return [
             'success' => true,
-            'cartCount' => WC()->cart->get_cart_contents_count(),
+            'item' => [
+                'name' => $added_product ? $added_product->get_name() : '',
+                'quantity' => $quantity,
+                'price' => (float) ($added_product ? $added_product->get_price() : 0),
+            ],
+            'cart' => [
+                'count' => (int) WC()->cart->get_cart_contents_count(),
+                'subtotal' => (float) WC()->cart->get_subtotal('edit'),
+                'total' => (float) WC()->cart->get_total('edit'),
+            ],
+            // Actual WooCommerce cart and checkout pages
             'cartUrl' => function_exists('wc_get_cart_url') ? wc_get_cart_url() : home_url('/cart/'),
+            'checkoutUrl' => function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : home_url('/checkout/'),
         ];
+    }
+
+    /**
+     * Cart-restore handler for WhatsApp customers.
+     *
+     * WhatsApp customers have no browser session, so their persistent
+     * Karta-side cart (?karta-cart=<cartToken>) is materialized into the
+     * visitor's REAL WooCommerce session cart when they open the link:
+     * the stored items are fetched from Karta Cloud (HMAC-authenticated),
+     * added with Woo-native cart APIs, and the visitor is redirected to
+     * the actual WooCommerce checkout page.
+     */
+    public static function handle_cart_restore() {
+        if (empty($_GET['karta-cart']) || !class_exists('WooCommerce')) {
+            return;
+        }
+
+        $cart_token = sanitize_text_field(wp_unslash($_GET['karta-cart']));
+        if (empty($cart_token)) {
+            return;
+        }
+
+        // Fetch the stored cart from Karta Cloud (server-to-server, HMAC)
+        $api_url = Karta_Settings::get_api_url();
+        $fetched = Karta_API::get_customer_cart($cart_token);
+
+        if (is_wp_error($fetched) || empty($fetched['items'])) {
+            // Cart unavailable — go to the normal cart page
+            wp_safe_redirect(function_exists('wc_get_cart_url') ? wc_get_cart_url() : home_url('/cart/'));
+            exit;
+        }
+
+        // Materialize into the visitor's real WooCommerce session cart
+        if (function_exists('wc_load_cart') && !WC()->cart) {
+            wc_load_cart();
+        }
+
+        if (WC()->cart) {
+            foreach ($fetched['items'] as $item) {
+                $product_id = isset($item['productId']) ? (int) $item['productId'] : 0;
+                $variation_id = isset($item['variationId']) ? (int) $item['variationId'] : 0;
+                $quantity = isset($item['quantity']) ? max(1, min(20, (int) $item['quantity'])) : 1;
+
+                if ($product_id <= 0) {
+                    continue;
+                }
+
+                $attributes = [];
+                if ($variation_id > 0) {
+                    $attributes = wc_get_product_variation_attributes($variation_id);
+                }
+
+                // Woo-native add (Woo validates purchasability/stock itself);
+                // items already in the cart keep their quantity
+                $in_cart = WC()->cart->get_cart_item($cart_token . '_' . $product_id . '_' . $variation_id);
+                if (!$in_cart) {
+                    WC()->cart->add_to_cart($product_id, $quantity, $variation_id, $attributes);
+                }
+            }
+        }
+
+        // Redirect to the actual WooCommerce checkout page
+        wp_safe_redirect(function_exists('wc_get_checkout_url') ? wc_get_checkout_url() : home_url('/checkout/'));
+        exit;
     }
 }

@@ -510,3 +510,51 @@
   outline: 2px solid var(--karta-primary-dark);
   outline-offset: 1px;
 }
+
+/* ─── Cart summary panel ─────────────────────────────────────── */
+
+#karta-chat-root .karta-cart-panel {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--karta-border);
+  border-radius: 12px;
+  background: var(--karta-surface);
+}
+
+#karta-chat-root .karta-cart-link {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+  line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+#karta-chat-root .karta-cart-view {
+  border: 1px solid var(--karta-primary);
+  background: transparent;
+  color: var(--karta-primary);
+}
+
+#karta-chat-root .karta-cart-view:hover {
+  background: rgba(99, 102, 241, 0.08);
+  text-decoration: none;
+}
+
+#karta-chat-root .karta-cart-checkout {
+  background: var(--karta-primary);
+  color: #ffffff;
+}
+
+#karta-chat-root .karta-cart-checkout:hover {
+  background: var(--karta-primary-dark);
+  text-decoration: none;
+}
+
+#karta-chat-root .karta-cart-link:focus-visible {
+  outline: 2px solid var(--karta-primary-dark);
+  outline-offset: 1px;
+}

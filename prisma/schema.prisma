@@ -25,6 +25,7 @@ model Tenant {
   orders        Order[]
   connections   WooCommerceConnection[]
   whatsAppConnections WhatsAppConnection[]
+  wooCustomerCarts    WooCustomerCart[]
 
   @@map("tenants")
 }
@@ -62,6 +63,23 @@ model WebhookEvent {
   @@unique([connectionId, externalEventId])
   @@index([connectionId])
   @@map("webhook_events")
+}
+
+// ─── WooCustomerCart ─────────────────────────────────────────
+model WooCustomerCart {
+  id         String   @id @default(cuid())
+  tenantId   String
+  phone      String   // WhatsApp phone number (E.164)
+  cartToken  String   @unique // Opaque token identifying this customer's persistent cart
+  items      Json     // [{ productId, variationId, quantity, name, price }]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, phone])
+  @@index([cartToken])
+  @@map("woo_customer_carts")
 }
 
 // ─── WhatsAppConnection ──────────────────────────────────────

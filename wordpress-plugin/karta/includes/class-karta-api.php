@@ -102,6 +102,38 @@ class Karta_API {
     }
 
     /**
+     * Fetch a WhatsApp customer's stored cart from Karta Cloud.
+     * Used by the cart-restore handler when the customer opens their
+     * personal cart link.
+     */
+    public static function get_customer_cart($cart_token) {
+        $api_url = Karta_Settings::get_api_url();
+        if (empty($api_url)) {
+            return new WP_Error('not_configured', 'Karta API URL is not configured.');
+        }
+
+        $url = $api_url . '/api/integrations/woocommerce/cart?token=' . rawurlencode($cart_token);
+        $response = wp_remote_get($url, [
+            'headers' => self::get_headers(),
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($status_code < 200 || $status_code >= 300) {
+            $error_message = isset($body['error']) ? $body['error'] : 'Unknown error';
+            return new WP_Error('api_error', $error_message, ['status' => $status_code]);
+        }
+
+        return $body;
+    }
+
+    /**
      * Notify Karta Cloud that a product was deleted in WooCommerce.
      * Karta archives the product (soft deletion) so it is never
      * recommended or shown again.
