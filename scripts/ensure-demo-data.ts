@@ -108,9 +108,9 @@ async function main() {
   for (const product of products) {
     await prisma.product.upsert({
       where: {
-        tenantId_wooConnectionId_externalId: {
+        tenantId_externalId: {
           tenantId: tenant.id,
-          wooConnectionId,
+
           externalId: product.externalId,
         },
       },
@@ -126,6 +126,7 @@ async function main() {
       },
       create: {
         tenantId: tenant.id,
+        wooConnectionId,
         ...product,
       },
     });
