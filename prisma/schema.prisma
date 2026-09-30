@@ -93,6 +93,7 @@ model Product {
   price          Decimal  @db.Decimal(10, 2)
   compareAtPrice Decimal? @db.Decimal(10, 2)
   stock          Int?     // null = stock not managed (available), 0 = out of stock
+  stockStatus    String?  // WooCommerce stock status: instock | outofstock | onbackorder
   image          String?  // Primary image URL (from WooCommerce)
   images         Json?    // Additional image URLs (array of strings, from WooCommerce gallery)
   category       String?  // Product category name (from WooCommerce)
@@ -161,6 +162,7 @@ model Conversation {
   channel    String   // "web" | "whatsapp"
   externalId String?  // WhatsApp conversation ID
   status     String   @default("active") // active | closed | archived
+  metadata   Json?    // Website chat context: { selectedProductId, selectedVariantId, pendingCart, location }
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

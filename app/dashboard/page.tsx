@@ -1,13 +1,13 @@
-import Link from "next/link";
 import { prisma } from "@/lib/db/prisma";
+import Link from "next/link";
+import { getOrCreateDemoTenant } from "@/lib/tenant/resolution";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  // Get stats for the dashboard
-  const tenant = await prisma.tenant.findFirst({
-    orderBy: { createdAt: "asc" },
-  });
+  // Resolve the demo tenant deterministically (no arbitrary first-tenant
+  // fallback). In production this would be tenant-scoped via authentication.
+  const tenant = await getOrCreateDemoTenant();
 
   const productCount = tenant
     ? await prisma.product.count({ where: { tenantId: tenant.id } })

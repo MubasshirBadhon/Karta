@@ -61,9 +61,18 @@ export async function DELETE(
 
     // Delete the connection record
     // This revokes authentication — old connectionId/secret will no longer work
-    // Products, orders, and customers are NOT deleted
+    // Products, orders, and customers are NOT deleted (hard deletion)
     await prisma.wooCommerceConnection.delete({
       where: { id: connection.id },
+    });
+
+    // Archive the tenant's products (soft deletion) — a disconnected
+    // store's products must no longer be exposed to the website AI.
+    // Orders/conversations may still reference them, so products are
+    // archived (status="archived"), never hard-deleted.
+    await prisma.product.updateMany({
+      where: { tenantId: tenant.id, status: { not: "archived" } },
+      data: { status: "archived" },
     });
 
     return NextResponse.json({

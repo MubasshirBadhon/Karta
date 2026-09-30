@@ -68,6 +68,17 @@ class Karta_Webhooks {
             return new WP_Error('invalid_payload', 'Invalid webhook payload.', ['status' => 400]);
         }
 
+        // Product deletion: the product no longer exists in WooCommerce, so
+        // wc_get_product returns false. Karta must archive it (soft deletion)
+        // so it is never recommended or shown again.
+        if ($topic === 'product.deleted') {
+            $deleted_id = isset($payload['id']) ? (string) $payload['id'] : $resource_id;
+            if (!empty($deleted_id)) {
+                Karta_API::delete_product($deleted_id);
+            }
+            return ['status' => 'success'];
+        }
+
         // Normalize and sync the product
         $product = wc_get_product($payload['id']);
         $normalized = Karta_Products::normalize_product($product);

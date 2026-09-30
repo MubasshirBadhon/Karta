@@ -77,6 +77,7 @@ export interface NormalizedProduct {
   images: string[] | null | undefined;
   category: string | null | undefined;
   productUrl: string | null | undefined;
+  stockStatus: string | null | undefined;
   status: string;
   type: "simple" | "variable";
   variations: NormalizedVariation[];
@@ -150,6 +151,10 @@ export function normalizeProduct(product: z.infer<typeof ProductSchema>): Normal
     category: product.category === undefined ? undefined : product.category || null,
     // Canonical WooCommerce permalink — never constructed from site URL + name
     productUrl: product.productUrl === undefined ? undefined : product.productUrl || null,
+    // WooCommerce stock status (instock | outofstock | onbackorder) — needed
+    // so explicit out-of-stock remains unavailable even when quantity is null
+    stockStatus:
+      product.stockStatus === undefined ? undefined : product.stockStatus || null,
     status,
     type: product.type,
     variations: product.variations.map((v) => ({

@@ -10,7 +10,8 @@ interface Message {
 interface ChatResponse {
   success: boolean;
   conversationId: string;
-  response: string;
+  message?: string;
+  response?: string;
 }
 
 export function ChatClient({ siteToken }: { siteToken: string }) {
@@ -56,7 +57,7 @@ export function ChatClient({ siteToken }: { siteToken: string }) {
         setConversationId(data.conversationId);
         setMessages((prev) => [
           ...prev,
-          { role: "assistant", content: data.response },
+          { role: "assistant", content: data.message || data.response || "Sorry, something went wrong. Please try again." },
         ]);
       } else {
         setMessages((prev) => [

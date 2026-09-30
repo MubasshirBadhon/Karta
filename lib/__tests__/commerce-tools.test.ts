@@ -57,7 +57,8 @@ describe("Commerce Tools", () => {
 
       expect(searchProducts).toHaveBeenCalledWith("tenant-1", "test", {
         maxPrice: 5000,
-        limit: 10,
+        minPrice: undefined,
+        limit: 20,
       });
       expect(result).toHaveLength(1);
     });

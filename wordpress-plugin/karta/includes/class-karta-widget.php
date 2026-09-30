@@ -66,6 +66,9 @@ class Karta_Widget {
             'apiUrl'    => Karta_Settings::get_api_url(),
             'endpoint'  => '/api/chat',
             'siteToken' => Karta_Settings::get_connection_id(),
+            // Per-session nonce for the same-origin cart bridge (CSRF protection)
+            'cartNonce' => wp_create_nonce('karta_cart_nonce'),
+            'cartEndpoint' => home_url('/wp-json/karta/v1/cart/add'),
         ]);
     }
 }

@@ -61,7 +61,10 @@ export async function resolveSiteTokenContext(siteToken: string): Promise<Websit
  * Resolve the website context from an existing conversation ID.
  * Used for conversation continuation when the widget already has a
  * conversationId (the conversation itself proves tenant membership).
- * Returns null if the conversation does not exist.
+ *
+ * Returns null if the conversation does not exist OR the tenant no longer
+ * has an active WooCommerce connection — a disconnected store's products
+ * must never leak through old conversations.
  */
 export async function resolveConversationContext(conversationId: string): Promise<WebsiteContext | null> {
   if (!conversationId) return null;
@@ -84,10 +87,15 @@ export async function resolveConversationContext(conversationId: string): Promis
     },
   });
 
+  // Disconnected store — do not expose its products
+  if (!connection) {
+    return null;
+  }
+
   return {
     tenantId: conversation.tenantId,
-    connectionId: connection?.connectionId ?? "",
-    siteUrl: connection?.siteUrl ?? null,
-    siteName: connection?.siteName ?? null,
+    connectionId: connection.connectionId,
+    siteUrl: connection.siteUrl,
+    siteName: connection.siteName,
   };
 }

@@ -39,6 +39,7 @@ require_once KARTA_PLUGIN_DIR . 'includes/class-karta-products.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-webhooks.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-ajax.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-widget.php';
+require_once KARTA_PLUGIN_DIR . 'includes/class-karta-cart.php';
 
 // Initialize plugin
 add_action('init', 'karta_init_plugin');
@@ -49,6 +50,7 @@ function karta_init_plugin() {
     Karta_Webhooks::init();
     Karta_Ajax::init();
     Karta_Widget::init();
+    Karta_Cart::init();
 }
 
 // Register REST API endpoint for WooCommerce webhooks

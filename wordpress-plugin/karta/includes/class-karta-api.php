@@ -92,4 +92,16 @@ class Karta_API {
             'callback_url' => $callback_url,
         ]);
     }
+
+    /**
+     * Notify Karta Cloud that a product was deleted in WooCommerce.
+     * Karta archives the product (soft deletion) so it is never
+     * recommended or shown again.
+     */
+    public static function delete_product($external_id) {
+        return self::request('/api/integrations/woocommerce/webhooks', 'POST', [
+            'eventType' => 'product.deleted',
+            'productId' => (string) $external_id,
+        ]);
+    }
 }

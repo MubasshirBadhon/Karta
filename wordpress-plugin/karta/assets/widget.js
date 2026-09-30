@@ -1,22 +1,28 @@
 /**
- * Karta AI — Floating Chat Widget
+ * Karta AI — Floating Shopping Assistant Widget
  *
- * Vanilla JavaScript (no framework bundle). Builds the floating launcher
- * and chat popup dynamically so nothing is injected into the merchant's
- * markup, and every element is namespaced under #karta-chat-root.
+ * Vanilla JavaScript (no framework bundle). Builds a subtle floating
+ * launcher and a compact chat panel dynamically — every element is
+ * namespaced under #karta-chat-root so the merchant theme is untouched.
  *
- * Talks to the existing production Karta API (/api/chat). The public
- * siteToken (a revocable widget identifier, NOT a secret) resolves the
- * store/tenant server-side. No credentials, connection secrets, or
- * tenant IDs are handled here.
+ * Talks to the production Karta API (/api/chat). The public siteToken
+ * (a revocable widget identifier, NOT a secret) resolves the store/tenant
+ * server-side. No credentials, connection secrets, or tenant IDs here.
  *
- * Product recommendations are rendered as structured cards from API data
- * (imageUrl, productUrl, price, availability) using DOM APIs/textContent —
- * never innerHTML — so AI/JSON content can never inject markup. The
- * "View Product" button opens the real WooCommerce product URL.
+ * Product recommendations are rendered as compact cards from the
+ * structured API response (imageUrl, productUrl, price, availability)
+ * using DOM APIs/textContent — never innerHTML — so AI/JSON content can
+ * never inject markup. "View Product" opens the exact WooCommerce
+ * product URL.
  *
- * Configuration is provided by the Karta WordPress plugin via
- * wp_localize_script as window.kartaWidget = { apiUrl, endpoint, siteToken }.
+ * Add-to-cart: the API returns a cartAction only after the customer's
+ * explicit confirmation. The widget then performs the add against the
+ * merchant's same-origin WooCommerce cart bridge (karta/v1/cart/add,
+ * session-aware, nonce-protected) so the item lands in the CUSTOMER'S
+ * cart. WooCommerce owns cart/checkout/tax/shipping/payment.
+ *
+ * Configuration (wp_localize_script): window.kartaWidget =
+ * { apiUrl, endpoint, siteToken, cartNonce, cartEndpoint }.
  */
 (function () {
   "use strict";
@@ -31,9 +37,11 @@
 
   var API_URL = String(cfg.apiUrl).replace(/\/+$/, "") + (cfg.endpoint || "/api/chat");
   var SITE_TOKEN = String(cfg.siteToken);
+  var CART_NONCE = String(cfg.cartNonce || "");
+  var CART_ENDPOINT = String(cfg.cartEndpoint || "");
 
   var WELCOME_MESSAGE =
-    "Hi! I'm Karta, your AI shopping assistant. How can I help you find something today?";
+    "Hi! I'm Karta, your AI shopping assistant. What are you looking for today?";
 
   var SESSION_KEY = "karta_conversation_id";
 
@@ -85,30 +93,29 @@
     root = el("div");
     root.id = "karta-chat-root";
 
-    // Launcher button
+    // Launcher — small, subtle, badge only
     launcher = el("button", "karta-launcher");
     launcher.setAttribute("type", "button");
-    launcher.setAttribute("aria-label", "Open Karta AI chat");
+    launcher.setAttribute("aria-label", "Karta AI shopping assistant");
     launcher.setAttribute("aria-expanded", "false");
     launcher.appendChild(el("span", "karta-launcher-badge", "K"));
-    launcher.appendChild(el("span", "karta-launcher-label", "Karta AI"));
     launcher.addEventListener("click", toggle);
 
-    // Popup
+    // Popup — compact panel
     popup = el("div", "karta-popup");
     popup.setAttribute("role", "dialog");
-    popup.setAttribute("aria-label", "Karta AI chat");
+    popup.setAttribute("aria-label", "Karta AI shopping assistant");
 
     // Header
     var header = el("div", "karta-header");
     header.appendChild(el("span", "karta-header-badge", "K"));
     var headerTitle = el("div", "karta-header-title");
     headerTitle.appendChild(el("p", "karta-header-name", "Karta AI"));
-    headerTitle.appendChild(el("p", "karta-header-subtitle", "AI Shopping Assistant"));
+    headerTitle.appendChild(el("p", "karta-header-subtitle", "Shopping Assistant"));
     header.appendChild(headerTitle);
     var closeBtn = el("button", "karta-close", "\u00D7");
     closeBtn.setAttribute("type", "button");
-    closeBtn.setAttribute("aria-label", "Close Karta AI chat");
+    closeBtn.setAttribute("aria-label", "Close Karta AI");
     closeBtn.addEventListener("click", toggle);
     header.appendChild(closeBtn);
 
@@ -136,7 +143,7 @@
     inputRow.appendChild(inputEl);
     inputRow.appendChild(sendBtn);
     footer.appendChild(inputRow);
-    footer.appendChild(el("p", "karta-powered", "Powered by Karta AI — answers based on real product data"));
+    footer.appendChild(el("p", "karta-powered", "Powered by Karta AI"));
 
     popup.appendChild(header);
     popup.appendChild(messagesEl);
@@ -163,7 +170,7 @@
     isOpen = !isOpen;
     popup.classList.toggle("karta-open", isOpen);
     launcher.setAttribute("aria-expanded", isOpen ? "true" : "false");
-    launcher.setAttribute("aria-label", isOpen ? "Close Karta AI chat" : "Open Karta AI chat");
+    launcher.setAttribute("aria-label", isOpen ? "Close Karta AI" : "Karta AI shopping assistant");
     if (isOpen) {
       scrollToEnd();
       inputEl.focus();
@@ -173,9 +180,10 @@
   // ─── Messages ────────────────────────────────────────────────
 
   /**
-   * Render AI text safely: textContent only, with minimal markdown support
-   * (**bold**). All content is inserted via textContent/DOM APIs — never
-   * innerHTML — so AI output can never inject markup.
+   * Render assistant text safely: textContent only, with minimal markdown
+   * support (**bold**). Table/pipe lines are stripped defensively (the
+   * server already sanitizes them). Never innerHTML — AI output can never
+   * inject markup.
    */
   function addMessage(role, text, isError) {
     var row = el("div", "karta-msg-row karta-" + role);
@@ -187,14 +195,21 @@
   }
 
   function appendFormattedText(container, text) {
+    var lines = text.split("\n").filter(function (line) {
+      return line.trim() !== "" && !/^\s*\|/.test(line);
+    });
+    var joined = lines.join("\n");
     // Split on **bold** markers; odd segments become <strong> nodes.
-    var parts = text.split("**");
+    var parts = joined.split("**");
     for (var i = 0; i < parts.length; i++) {
       if (parts[i] === "") continue;
       if (i % 2 === 1) {
         container.appendChild(el("strong", null, parts[i]));
       } else {
         container.appendChild(document.createTextNode(parts[i]));
+      }
+      if (i < parts.length - 1) {
+        // preserve line breaks inside text segments
       }
     }
   }
@@ -237,18 +252,25 @@
       var row = el("div", "karta-msg-row karta-bot");
       var card = el("div", "karta-card");
 
-      // Product image — only the real URL from the API, never invented
+      // Product image — real URL from the API, never invented;
+      // neutral placeholder when the product has no image.
       if (p.imageUrl) {
         var img = el("img", "karta-card-img");
         img.src = p.imageUrl;
         img.alt = p.name || "Product image";
         img.loading = "lazy";
         img.referrerPolicy = "no-referrer";
+        img.onerror = (function (imageNode, placeholderNode) {
+          return function () {
+            // Never display a broken image — swap in the placeholder
+            if (imageNode.parentNode) {
+              imageNode.parentNode.replaceChild(placeholderNode, imageNode);
+            }
+          };
+        })(img, makePlaceholder());
         card.appendChild(img);
       } else {
-        var placeholder = el("div", "karta-card-img karta-card-img-empty");
-        placeholder.textContent = "No image";
-        card.appendChild(placeholder);
+        card.appendChild(makePlaceholder());
       }
 
       var body = el("div", "karta-card-body");
@@ -256,7 +278,7 @@
       // Name
       body.appendChild(el("p", "karta-card-name", p.name || "Product"));
 
-      // Price (+ old price if on sale)
+      // Price (+ compare-at price when discounted)
       var priceRow = el("div", "karta-card-price-row");
       priceRow.appendChild(el("span", "karta-card-price", money(p.price)));
       if (p.compareAtPrice && Number(p.compareAtPrice) > Number(p.price)) {
@@ -264,31 +286,39 @@
       }
       body.appendChild(priceRow);
 
-      // Availability — null stock means not managed/unknown, never "0"
-      var stockText;
-      if (!p.available) {
-        stockText = "Out of stock";
-      } else if (p.stockManaged && p.stock !== null && p.stock !== undefined) {
-        stockText = "In stock" + (Number(p.stock) > 0 ? " (" + Number(p.stock) + ")" : "");
-      } else {
-        stockText = "Available";
-      }
-      body.appendChild(
-        el("p", "karta-card-stock " + (p.available ? "karta-stock-in" : "karta-stock-out"), stockText)
-      );
+      // Availability — from the structured API data. stock=null means
+      // not managed → "Available"; explicit out-of-stock → "Out of stock".
+      var stockClass = p.available ? "karta-stock-in" : "karta-stock-out";
+      body.appendChild(el("p", "karta-card-stock " + stockClass, p.availability || (p.available ? "Available" : "Out of stock")));
 
       // Optional variant information
       if (p.variants && p.variants.length) {
         body.appendChild(el("p", "karta-card-variants", p.variants.join(" · ")));
       }
 
-      // "View Product" opens the real WooCommerce product URL
+      // Actions: View Product (exact WooCommerce URL) + Add to cart
+      var actions = el("div", "karta-card-actions");
+
       if (p.productUrl) {
         var link = el("a", "karta-card-link", "View Product");
         link.href = p.productUrl;
         link.target = "_blank";
         link.rel = "noopener";
-        body.appendChild(link);
+        actions.appendChild(link);
+      }
+
+      if (p.available && CART_ENDPOINT && CART_NONCE) {
+        var addBtn = el("button", "karta-card-add", "Add to Cart");
+        addBtn.setAttribute("type", "button");
+        addBtn.setAttribute("data-karta-product-id", p.id);
+        addBtn.addEventListener("click", function (event) {
+          requestAddToCart(event.currentTarget.getAttribute("data-karta-product-id"));
+        });
+        actions.appendChild(addBtn);
+      }
+
+      if (actions.childNodes.length) {
+        body.appendChild(actions);
       }
 
       card.appendChild(body);
@@ -297,6 +327,27 @@
     }
 
     scrollToEnd();
+  }
+
+  function makePlaceholder() {
+    var placeholder = el("div", "karta-card-img karta-card-img-empty");
+    placeholder.textContent = "No image";
+    return placeholder;
+  }
+
+  // ─── Add to cart (explicit confirmation already given by the API) ──
+
+  function requestAddToCart(kartaProductId) {
+    if (isPending || !kartaProductId) return;
+
+    // Resolve the WooCommerce IDs from the Karta product ID via the
+    // chat API confirmation flow: send an add-to-cart message so the
+    // deterministic layer resolves the exact product/variation and
+    // returns a cartAction after confirmation.
+    var text = "add this to cart";
+    addMessage("user", text);
+    showTyping();
+    chatRequest({ message: text, targetProductId: kartaProductId });
   }
 
   // ─── Error states (distinct, friendly, retry allowed) ────────
@@ -335,12 +386,18 @@
 
     addMessage("user", text);
     showTyping();
+    chatRequest({ message: text });
+  }
 
-    // Request body: { message, conversationId?, siteToken } — the public
-    // site token resolves the store/tenant server-side.
-    var body = { message: text, siteToken: SITE_TOKEN };
+  function chatRequest(payload) {
+    // Request body: { message, conversationId?, siteToken, targetProductId? }
+    // — the public site token resolves the store/tenant server-side.
+    var body = { message: payload.message, siteToken: SITE_TOKEN };
     if (conversationId) {
       body.conversationId = conversationId;
+    }
+    if (payload.targetProductId) {
+      body.targetProductId = payload.targetProductId;
     }
 
     fetch(API_URL, {
@@ -360,37 +417,7 @@
       })
       .then(function (result) {
         removeTyping();
-
-        var data = result.data;
-
-        if (result.ok && data && data.success) {
-          // Persist conversationId for the current browser session
-          // so multi-turn conversations work.
-          if (data.conversationId) {
-            saveConversationId(data.conversationId);
-          }
-
-          var text = data.response || "";
-          var hasProducts = data.products && data.products.length > 0;
-
-          // AI provider failure (server reports aiSuccess=false) or empty
-          // response is shown as a distinct error state — never a network error.
-          if (data.aiSuccess === false) {
-            addMessage("bot", text || friendlyError(500), true);
-          } else if (text) {
-            addMessage("bot", text);
-            if (hasProducts) {
-              addProductCards(data.products);
-            }
-          } else if (hasProducts) {
-            addProductCards(data.products);
-          } else {
-            addMessage("bot", "Karta AI returned an empty response. Please try again.", true);
-          }
-        } else {
-          // HTTP errors — distinct messages per status code
-          addMessage("bot", friendlyError(result.status), true);
-        }
+        handleChatResponse(result);
       })
       .catch(function () {
         // Network/CORS failure — the browser blocked the request
@@ -407,6 +434,94 @@
         inputEl.disabled = false;
         sendBtn.disabled = false;
         inputEl.focus();
+      });
+  }
+
+  function handleChatResponse(result) {
+    var data = result.data;
+
+    if (result.ok && data && data.success) {
+      // Persist conversationId for the current browser session so
+      // multi-turn conversations work.
+      if (data.conversationId) {
+        saveConversationId(data.conversationId);
+      }
+
+      var text = data.message || data.response || "";
+      var hasProducts = data.products && data.products.length > 0;
+
+      if (data.aiSuccess === false) {
+        addMessage("bot", text || friendlyError(500), true);
+        return;
+      }
+
+      if (text) {
+        addMessage("bot", text);
+      }
+
+      if (hasProducts) {
+        addProductCards(data.products);
+      }
+
+      // Confirmed cart action → perform the add against the merchant's
+      // own WooCommerce cart (customer's session, same origin).
+      if (data.cartAction && data.cartAction.type === "addToCart") {
+        performAddToCart(data.cartAction);
+      }
+
+      if (!text && !hasProducts) {
+        addMessage("bot", "Karta AI returned an empty response. Please try again.", true);
+      }
+    } else {
+      // HTTP errors — distinct messages per status code
+      addMessage("bot", friendlyError(result.status), true);
+    }
+  }
+
+  function performAddToCart(action) {
+    if (!CART_ENDPOINT || !CART_NONCE) {
+      addMessage("bot", "Cart is not available on this store.", true);
+      return;
+    }
+
+    fetch(CART_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Karta-Nonce": CART_NONCE,
+      },
+      body: JSON.stringify({
+        productId: action.productId,
+        variationId: action.variationId || 0,
+        quantity: action.quantity || 1,
+      }),
+    })
+      .then(function (response) {
+        return response
+          .json()
+          .catch(function () {
+            return null;
+          })
+          .then(function (data) {
+            return { ok: response.ok, data: data };
+          });
+      })
+      .then(function (result) {
+        if (result.ok && result.data && result.data.success) {
+          addMessage(
+            "bot",
+            (action.productName || "Product") + " added to cart \u2705 (" + (result.data.cartCount || 1) + " items)"
+          );
+        } else {
+          var message =
+            result.data && result.data.message
+              ? result.data.message
+              : "Could not add the product to the cart. Please try again.";
+          addMessage("bot", message, true);
+        }
+      })
+      .catch(function () {
+        addMessage("bot", "Could not reach the cart. Please try again.", true);
       });
   }
 

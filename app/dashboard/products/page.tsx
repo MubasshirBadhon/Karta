@@ -1,15 +1,14 @@
 import { prisma } from "@/lib/db/prisma";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getOrCreateDemoTenant } from "@/lib/tenant/resolution";
 
 export const dynamic = "force-dynamic";
 
 export default async function ProductsPage() {
-  // For the investor demo, show products from the first tenant
-  // In production, this would be tenant-scoped via authentication
-  const tenant = await prisma.tenant.findFirst({
-    orderBy: { createdAt: "asc" },
-  });
+  // Resolve the demo tenant deterministically (no arbitrary first-tenant
+  // fallback). In production this would be tenant-scoped via authentication.
+  const tenant = await getOrCreateDemoTenant();
 
   if (!tenant) {
     notFound();
