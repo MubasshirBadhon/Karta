@@ -28,6 +28,7 @@ vi.mock("@/lib/db/prisma", () => ({
     product: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
@@ -364,10 +365,10 @@ describe("product lifecycle", () => {
   });
 
   it("softDeleteProduct archives instead of hard-deleting", async () => {
-    mockedPrisma.product.findUnique.mockResolvedValue({ id: "prod-1", status: "active" });
+    mockedPrisma.product.findFirst.mockResolvedValue({ id: "prod-1", status: "active" });
     mockedPrisma.product.update.mockResolvedValue({});
 
-    const result = await softDeleteProduct("tenant-1", "101");
+    const result = await softDeleteProduct("tenant-1", "conn-1", "101");
 
     expect(result).toBe(true);
     expect(mockedPrisma.product.update).toHaveBeenCalledWith(
@@ -517,7 +518,7 @@ describe("productUrl and imageUrl persistence", () => {
     mockedPrisma.product.findUnique.mockResolvedValue(null);
     mockedPrisma.product.create.mockResolvedValue({ id: "prod-new" });
 
-    await syncProducts("tenant-1", [
+    await syncProducts("tenant-1", "conn-1", [
       normalizeProduct({
         externalId: "201",
         name: "Test Product",
@@ -553,7 +554,7 @@ describe("productUrl and imageUrl persistence", () => {
     });
     mockedPrisma.product.update.mockResolvedValue({});
 
-    await syncProducts("tenant-1", [
+    await syncProducts("tenant-1", "conn-1", [
       normalizeProduct({
         externalId: "201",
         name: "Test Product",
