@@ -64,6 +64,7 @@ vi.mock("@/lib/ai/commerce-engine", () => ({
 }));
 
 import { prisma } from "@/lib/db/prisma";
+import { processMessage } from "@/lib/ai/commerce-engine";
 import { POST as CHAT_POST, OPTIONS } from "@/app/api/chat/route";
 import { GET as CONVERSATION_GET, DELETE as CONVERSATION_DELETE } from "@/app/api/chat/conversation/route";
 import { POST as CUSTOMERS_POST } from "@/app/api/integrations/woocommerce/customers/route";
@@ -668,6 +669,32 @@ describe("recommendation engine", () => {
     expect(data.products.length).toBeGreaterThan(0);
     // The LLM was never called — candidates are deterministic
     expect(mocked).not.toHaveBeenCalled();
+  });
+
+  it("product-name words are a search signal even without category aliases", async () => {
+    // "mug" is not in the category alias list — but the product name
+    // contains it, so the deterministic search handles it (not the LLM)
+    mockedPrisma.product.findMany.mockResolvedValue([
+      makeCatalogProduct({
+        id: "prod-mug",
+        externalId: "29",
+        name: "Ceramic Coffee Mug (12oz)",
+        category: "Kitchen",
+        price: 12.99,
+      }),
+    ]);
+
+    const res = await CHAT_POST(
+      makeChatRequest({ message: "mug ache?", siteToken: SITE_TOKEN, visitorId: VISITOR_A })
+    );
+    const data = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(data.intent).toBe("PRODUCT_SEARCH");
+    expect(data.products.length).toBeGreaterThan(0);
+    expect(data.products[0].name).toContain("Mug");
+    // The LLM was never called — the name match is deterministic
+    expect(processMessage).not.toHaveBeenCalled();
   });
 });
 

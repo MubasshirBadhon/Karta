@@ -559,8 +559,9 @@ export async function POST(request: Request) {
 
     // ─── FLOW 4: product search (deterministic candidates + cards) ─
     // Gated on product-commerce intent: general questions (delivery,
-    // small talk) go to the LLM instead of dumping the catalog.
-    if (hasProductSignal(message)) {
+    // small talk) go to the LLM instead of dumping the catalog. With the
+    // catalog provided, product-name words in the message are a signal.
+    if (hasProductSignal(message, catalog)) {
       await saveMessage(conversation.id, "user", message);
       await trackEvent(tenantId, {
         type: "MESSAGE_SENT",

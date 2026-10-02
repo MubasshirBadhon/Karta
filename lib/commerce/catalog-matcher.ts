@@ -399,16 +399,43 @@ const GENERIC_PRODUCT_QUERY_PATTERN =
  * Does the message show product-commerce intent (vs a general question)?
  * Used to gate the deterministic product flow: general questions go to
  * the LLM; product queries are handled deterministically.
+ *
+ * With the catalog provided, ANY product-name word in the message is a
+ * signal ("mug ache?" → the Coffee Mug) — so catalog searches work for
+ * product names that are not in the category alias list.
  */
-export function hasProductSignal(message: string): boolean {
-  return (
+export function hasProductSignal(message: string, catalog?: CatalogProduct[]): boolean {
+  if (
     detectCategoryKey(message) !== null ||
     extractBudgetRange(message) !== null ||
     detectColor(message) !== null ||
     detectSize(message) !== null ||
     referencesRecentProduct(message) ||
     GENERIC_PRODUCT_QUERY_PATTERN.test(String(message || ""))
-  );
+  ) {
+    return true;
+  }
+
+  // Product-name match signal (deterministic, catalog-backed)
+  if (catalog && catalog.length) {
+    return productNameMatches(catalog, message);
+  }
+
+  return false;
+}
+
+/**
+ * Does any product-name word appear in the message? (signal-level check)
+ */
+export function productNameMatches(catalog: CatalogProduct[], message: string): boolean {
+  const text = normalizeText(message);
+  if (!text) return false;
+
+  for (const product of catalog) {
+    const nameWords = normalizeText(product.name).split(" ").filter((w) => w.length > 1);
+    if (nameWords.some((w) => text.includes(w))) return true;
+  }
+  return false;
 }
 
 // ─── Conversation follow-up context ──────────────────────────
@@ -638,6 +665,18 @@ export function pickProducts(
       )
     );
     if (sizeMatched.length) candidates = sizeMatched;
+  }
+
+  // ─── 5b. Product-name filter: any product-name word in the message
+  // narrows the candidates deterministically ("mug ache?" → the Mug) —
+  // works for product names that are not in the category alias list.
+  {
+    const text = normalizeText(message);
+    const nameMatched = candidates.filter((p) => {
+      const nameWords = normalizeText(p.name).split(" ").filter((w) => w.length > 1);
+      return nameWords.some((w) => text.includes(w));
+    });
+    if (nameMatched.length) candidates = nameMatched;
   }
 
   // 6. Sort by relevance
