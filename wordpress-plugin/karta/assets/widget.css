@@ -193,6 +193,33 @@
   outline-offset: 1px;
 }
 
+#karta-chat-root .karta-clear {
+  padding: 4px 9px;
+  margin-right: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 7px;
+  background: transparent;
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 0.85;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+#karta-chat-root .karta-clear:hover {
+  background: rgba(255, 255, 255, 0.15);
+  opacity: 1;
+}
+
+#karta-chat-root .karta-clear:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+}
+
 /* ─── Messages ───────────────────────────────────────────────── */
 
 #karta-chat-root .karta-messages {
