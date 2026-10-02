@@ -460,7 +460,13 @@
   // ─── Add to cart (explicit confirmation already given by the API) ──
 
   function requestAddToCart(kartaProductId) {
+    // Idempotency: a double click / browser retry must not send duplicate
+    // requests — the pending guard covers both sendMessage and card adds.
     if (isPending || !kartaProductId) return;
+
+    isPending = true;
+    inputEl.disabled = true;
+    sendBtn.disabled = true;
 
     // Resolve the WooCommerce IDs from the Karta product ID via the
     // chat API confirmation flow: send an add-to-cart message so the

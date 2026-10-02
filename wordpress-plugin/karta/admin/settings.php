@@ -43,12 +43,16 @@
             <button type="button" class="button" id="karta-test-connection">
                 Test Connection
             </button>
+            <button type="button" class="button" id="karta-diagnostics">
+                Diagnostics
+            </button>
             <button type="button" class="button button-link-delete" id="karta-disconnect">
                 Disconnect
             </button>
         </p>
 
         <div id="karta-sync-results" class="karta-results" style="display:none;"></div>
+        <div id="karta-diagnostics-results" class="karta-results" style="display:none;"></div>
 
     <?php else : ?>
         <div class="karta-connection-status disconnected">

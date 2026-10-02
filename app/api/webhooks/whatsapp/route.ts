@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
+import { createHash } from "crypto";
 import { verifyWebhookSignature, validateVerificationRequest, isValidWebhookPayload } from "@/lib/channels/whatsapp/webhook";
 import { processWebhookPayload } from "@/lib/channels/whatsapp/adapter";
 import { getWhatsAppProvider } from "@/lib/channels/whatsapp/provider";
@@ -297,6 +298,18 @@ async function handleWhatsAppCartFlow(
     // success if WooCommerce-side state is missing
     const inCart = cart.items.find((i) => i.productId === (product.externalId ?? ""));
     if (!inCart) {
+      // Structured failure log (observability): enough to diagnose, never
+      // secrets or full private message content. The phone is hashed.
+      console.error("[KARTA CART FAIL]", {
+        channel: "whatsapp",
+        operation: "cart_add_verify",
+        productId: product.externalId,
+        variationId: pending.variationExternalId,
+        quantity: pending.quantity,
+        inventoryMode,
+        phoneHash: createHash("sha256").update(phone).digest("hex").slice(0, 8),
+        correlation: cart.cartToken.slice(0, 8),
+      });
       return "দুঃখিত, পণ্যটি কার্টে যোগ করা যায়নি। আবার চেষ্টা করুন।";
     }
 

@@ -66,6 +66,7 @@ import {
   type CatalogProduct,
   type InventoryMode,
 } from "@/lib/commerce/catalog-matcher";
+import { normalizeProduct } from "@/lib/integrations/woocommerce/normalizer";
 import { GroqProvider } from "@/lib/ai/groq";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -239,6 +240,42 @@ describe("inventoryMode=managed", () => {
   it("stock>0 shows the count", () => {
     const product = makeProduct({ stock: 12, manageStock: true });
     expect(availabilityLabel(product, "managed")).toBe("In stock (12)");
+  });
+
+  it("onbackorder (backorders allowed) is available in managed mode — mirrors Woo's is_in_stock", () => {
+    const product = makeProduct({ stock: 0, stockStatus: "onbackorder", manageStock: true });
+    expect(isProductAvailable(product, "managed")).toBe(true);
+    expect(availabilityLabel(product, "managed")).toBe("Available");
+  });
+
+  it("CASE C: an explicit outofstock (manage_stock=false) is unavailable even in unlimited mode", () => {
+    // The merchant EXPLICITLY set the stock status — inventoryMode
+    // "unlimited" must NOT override it
+    const product = makeProduct({ stock: null, stockStatus: "outofstock", manageStock: false });
+    expect(isProductAvailable(product, "unlimited")).toBe(false);
+    expect(availabilityLabel(product, "unlimited")).toBe("Out of stock");
+  });
+
+  it("CASE A: manage_stock=false never converts null to 0 anywhere in the chain", () => {
+    // normalizer → the product: null stays null
+    const normalized = normalizeProduct({
+      externalId: "900",
+      name: "Unmanaged",
+      price: 100,
+      stockQuantity: null,
+      stockStatus: "instock",
+      manageStock: false,
+      type: "simple",
+      variations: [],
+    });
+    expect(normalized.stock).not.toBe(0);
+    expect(normalized.stock).toBeNull();
+  });
+
+  it("CASE B: managed quantities show the real count", () => {
+    expect(availabilityLabel(makeProduct({ stock: 50, manageStock: true }), "managed")).toBe("In stock (50)");
+    expect(availabilityLabel(makeProduct({ stock: 5, manageStock: true }), "managed")).toBe("In stock (5)");
+    expect(availabilityLabel(makeProduct({ stock: 0, manageStock: true }), "managed")).toBe("Out of stock");
   });
 
   it("managed-mode search excludes stock=0 products", () => {

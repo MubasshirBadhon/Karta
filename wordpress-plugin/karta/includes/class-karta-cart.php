@@ -138,6 +138,14 @@ class Karta_Cart {
             wc_load_cart();
         }
         if (!WC()->cart) {
+            // Structured failure log — cart session could not be initialized
+            error_log(sprintf(
+                '[KARTA CART FAIL] operation=cart_init product_id=%d variation_id=%d inventory_mode=%s correlation=%s',
+                $product_id,
+                $variation_id,
+                $unlimited_inventory ? 'unlimited' : 'managed',
+                substr(md5((string) $request->get_header('x_karta_nonce')), 0, 8)
+            ));
             return new WP_Error('cart_unavailable', 'Cart is not available.', ['status' => 500]);
         }
 
@@ -149,6 +157,18 @@ class Karta_Cart {
         );
 
         if (!$cart_item_key) {
+            // Structured failure log (PHASE 9 observability): enough to
+            // diagnose, never any secrets/tokens/passwords/payment data.
+            // A short correlation hash of the cart token is logged, not
+            // the token itself.
+            error_log(sprintf(
+                '[KARTA CART FAIL] operation=add_to_cart product_id=%d variation_id=%d quantity=%d inventory_mode=%s correlation=%s',
+                $product_id,
+                $variation_id,
+                $quantity,
+                $unlimited_inventory ? 'unlimited' : 'managed',
+                substr(md5((string) $request->get_header('x_karta_nonce')), 0, 8)
+            ));
             return new WP_Error('add_failed', 'Could not add the product to the cart.', ['status' => 500]);
         }
 

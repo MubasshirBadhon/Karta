@@ -1,18 +1,50 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db/prisma";
+import { authenticateWordPressRequest } from "@/lib/integrations/woocommerce/auth";
 
-export async function GET() {
+/**
+ * GET /api/diag/db
+ *
+ * Tenant/product diagnostic dump — HMAC-AUTHENTICATED.
+ *
+ * This endpoint previously exposed tenant, product, and connection data
+ * to ANY unauthenticated caller (a security hole). It is now restricted
+ * to the WooCommerce connection (HMAC) so only the merchant's plugin can
+ * read it. No secrets are included in the response.
+ */
+export async function GET(request: Request) {
+  const connectionId = request.headers.get("X-Karta-Connection-Id");
+  const timestamp = request.headers.get("X-Karta-Timestamp");
+  const signature = request.headers.get("X-Karta-Signature");
+
+  const auth = await authenticateWordPressRequest(connectionId, timestamp, signature);
+
+  if (!auth.success) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
+  const tenantId = auth.tenantId!;
+
   const tenants = await prisma.tenant.findMany({
-    orderBy: { createdAt: "asc" },
+    where: { id: tenantId },
     include: {
       products: {
+        where: { status: { not: "archived" } },
         include: { variants: true },
       },
-      connections: true,
+      connections: {
+        select: {
+          id: true,
+          connectionId: true,
+          siteUrl: true,
+          status: true,
+          lastSyncAt: true,
+        },
+      },
     },
   });
 
-  const productCount = await prisma.product.count();
+  const productCount = await prisma.product.count({ where: { tenantId } });
   const variantCount = await prisma.productVariant.count();
 
   return NextResponse.json({

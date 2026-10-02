@@ -75,6 +75,14 @@ class Karta_API {
     }
 
     /**
+     * Commerce diagnostics from Karta Cloud (connection, sync, counts,
+     * inventory mode, WhatsApp status). No secrets in the response.
+     */
+    public static function diagnostics() {
+        return self::request('/api/integrations/woocommerce/diagnostics', 'GET');
+    }
+
+    /**
      * Sync products to Karta Cloud.
      *
      * $is_final_batch marks the LAST batch of a full sync (the Karta side

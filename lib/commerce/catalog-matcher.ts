@@ -178,17 +178,26 @@ export function isProductAvailable(
   if (product.status !== "active") return false;
 
   if (inventoryMode === "unlimited") {
-    // Only a MANUAL merchant-set out-of-stock status counts. When stock
-    // management is enabled, WooCommerce derives the status from the
-    // quantity — that is quantity-driven and must be ignored.
+    // Only a MANUAL merchant-set out-of-stock status counts (this state
+    // exists only when stock management is disabled, so it is an explicit
+    // merchant choice, independent of quantity). When stock management is
+    // enabled, WooCommerce derives the status from the quantity — that is
+    // quantity-driven and must be ignored. An explicit out-of-stock is
+    // NEVER overridden merely because inventoryMode is "unlimited".
     if (product.manageStock === false && product.stockStatus === "outofstock") {
       return false;
     }
     return true;
   }
 
-  // Managed inventory mode
+  // Managed inventory mode — mirrors WooCommerce's own purchasability:
+  // - explicit outofstock → unavailable
+  // - onbackorder → backorders allowed → purchasable (Woo's is_in_stock
+  //   returns true for onbackorder)
+  // - stock=null → quantity unknown/not managed → available
+  // - stock>0 → available; stock=0 → out of stock
   if (product.stockStatus === "outofstock") return false;
+  if (product.stockStatus === "onbackorder") return true;
   if (product.stock === null) return true; // quantity unknown/not managed
   return product.stock > 0;
 }
