@@ -19,6 +19,7 @@ vi.mock("@/lib/db/prisma", () => ({
     conversation: {
       findUnique: vi.fn(),
       findFirst: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
       update: vi.fn(),
     },
@@ -34,6 +35,11 @@ vi.mock("@/lib/db/prisma", () => ({
       create: vi.fn(),
       update: vi.fn(),
       deleteMany: vi.fn(),
+    },
+    customerEvent: {
+      findMany: vi.fn().mockResolvedValue([]),
+      create: vi.fn().mockResolvedValue({}),
+      groupBy: vi.fn().mockResolvedValue([]),
     },
     message: {
       create: vi.fn(),
@@ -104,14 +110,14 @@ const makeProduct = (overrides: Partial<CatalogProduct> = {}): CatalogProduct =>
   ...overrides,
 });
 
-function makePostRequest(body: unknown, origin?: string): Request {
+function makePostRequest(body: Record<string, unknown>, origin?: string): Request {
   return new Request("https://karta-ozla.onrender.com/api/chat", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       ...(origin ? { origin } : {}),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ visitorId: "kvid_" + "b".repeat(32), ...body }),
   });
 }
 

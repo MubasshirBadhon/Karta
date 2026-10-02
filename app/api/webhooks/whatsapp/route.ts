@@ -26,6 +26,8 @@ import {
   type InventoryMode,
 } from "@/lib/commerce/catalog-matcher";
 import { addItemToCart, formatCartSummary } from "@/lib/commerce/woo-cart-store";
+import { trackEvent } from "@/lib/intelligence/events";
+import { normalizePhone } from "@/lib/intelligence/identity";
 
 // ─── GET: Webhook Verification ────────────────────────────────
 
@@ -125,19 +127,33 @@ export async function POST(request: Request) {
         // ─── Deterministic WhatsApp cart flow (add-to-cart / confirmation).
         // Only these intents are intercepted; everything else goes to the
         // AI engine unchanged.
-        if (phone) {
-          const cartResponse = await handleWhatsAppCartFlow(
-            tenant.id,
-            inventoryMode,
-            siteUrl,
-            phone,
-            message.conversationId!,
-            history,
-            message.text
-          );
+        if (message.customerId) {
+          // The customer's normalized phone (the cart identity)
+          const customer = await prisma.customer.findUnique({
+            where: { id: message.customerId },
+            select: { phone: true },
+          });
+          const phone = customer?.phone || "";
+
+          const cartResponse = phone
+            ? await handleWhatsAppCartFlow(
+                tenant.id,
+                inventoryMode,
+                siteUrl,
+                phone,
+                message.conversationId!,
+                history,
+                message.text
+              )
+            : null;
 
           if (cartResponse) {
             await saveMessage(message.conversationId!, "assistant", cartResponse);
+            await trackEvent(tenant.id, {
+              type: "MESSAGE_SENT",
+              customerId: message.customerId,
+              metadata: { channel: "whatsapp" },
+            });
             const provider = getWhatsAppProvider();
             await provider.sendTextMessage({
               phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID!,
@@ -184,6 +200,13 @@ export async function POST(request: Request) {
             },
           });
         }
+
+        // Customer intelligence events
+        await trackEvent(tenant.id, {
+          type: "MESSAGE_SENT",
+          customerId: message.customerId,
+          metadata: { channel: "whatsapp" },
+        });
 
         // Send response via WhatsApp (markers stripped — clean text only)
         if (cleanText) {
@@ -281,6 +304,23 @@ async function handleWhatsAppCartFlow(
     await prisma.conversation.update({
       where: { id: conversationId },
       data: { metadata: { ...metadata, pendingCart: null, selectedProductId: product.id } },
+    });
+
+    // Customer intelligence events
+    await trackEvent(tenantId, {
+      type: "PRODUCT_ADDED_TO_CART",
+      customerId: null,
+      metadata: {
+        productId: product.externalId,
+        variationId: pending.variationExternalId,
+        quantity: pending.quantity,
+        name: product.name,
+        phone,
+      },
+    });
+    await trackEvent(tenantId, {
+      type: "CHECKOUT_STARTED",
+      metadata: { productId: product.externalId, phone, channel: "whatsapp" },
     });
 
     // Reply: product, quantity, cart total + the personal checkout link
