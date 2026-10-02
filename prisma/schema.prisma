@@ -26,6 +26,7 @@ model Tenant {
   connections   WooCommerceConnection[]
   whatsAppConnections WhatsAppConnection[]
   wooCustomerCarts    WooCustomerCart[]
+  events              CustomerEvent[]
 
   @@map("tenants")
 }
@@ -168,16 +169,38 @@ model Customer {
   phone      String?
   email      String?
   externalId String?  // WooCommerce customer ID
+  visitorId  String?  // Linked first-party anonymous visitor identity (anonymous → Woo customer merge)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id])
   conversations Conversation[]
   orders        Order[]
+  events        CustomerEvent[]
 
   @@unique([tenantId, externalId])
+  @@unique([tenantId, visitorId])
   @@index([tenantId])
   @@map("customers")
+}
+
+// ─── CustomerEvent ───────────────────────────────────────────
+model CustomerEvent {
+  id         String   @id @default(cuid())
+  tenantId   String
+  customerId String?
+  visitorId  String?
+  type       String   // CONVERSATION_STARTED | MESSAGE_SENT | PRODUCT_SEARCHED | PRODUCT_VIEWED | PRODUCT_CLICKED | PRODUCT_RECOMMENDED | PRODUCT_ADDED_TO_CART | PRODUCT_REMOVED_FROM_CART | CHECKOUT_STARTED | ORDER_COMPLETED | CATEGORY_VIEWED
+  metadata   Json?    // Structured event metadata (query/category/budget/productId/etc.)
+  createdAt  DateTime @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, type])
+  @@index([tenantId, customerId])
+  @@index([tenantId, visitorId])
+  @@map("customer_events")
 }
 
 // ─── Conversation ────────────────────────────────────────────
@@ -185,6 +208,7 @@ model Conversation {
   id         String   @id @default(cuid())
   tenantId   String
   customerId String?
+  visitorId  String?  // First-party anonymous web visitor identity (per-visitor web conversations)
   channel    String   // "web" | "whatsapp"
   externalId String?  // WhatsApp conversation ID
   status     String   @default("active") // active | closed | archived
@@ -197,6 +221,7 @@ model Conversation {
   messages  Message[]
 
   @@unique([tenantId, externalId])
+  @@index([tenantId, visitorId])
   @@index([tenantId])
   @@map("conversations")
 }

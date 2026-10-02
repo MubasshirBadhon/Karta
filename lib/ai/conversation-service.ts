@@ -57,6 +57,43 @@ export async function getOrCreateConversation(
 }
 
 /**
+ * Get or create a conversation for a specific first-party VISITOR.
+ * Keyed on (tenantId, channel="web", visitorId) so each website visitor
+ * gets their OWN conversation — no cross-visitor context leakage, and
+ * the conversation survives page navigation (the widget recovers the
+ * visitor ID and continues this conversation).
+ */
+export async function getOrCreateVisitorConversation(
+  tenantId: string,
+  visitorId: string
+): Promise<ConversationInfo> {
+  const existing = await prisma.conversation.findFirst({
+    where: {
+      tenantId,
+      channel: "web",
+      visitorId,
+      status: "active",
+    },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  const conversation = await prisma.conversation.create({
+    data: {
+      tenantId,
+      channel: "web",
+      visitorId,
+      status: "active",
+    },
+  });
+
+  return conversation;
+}
+
+/**
  * Get conversation history formatted for the AI engine.
  */
 export async function getConversationHistory(

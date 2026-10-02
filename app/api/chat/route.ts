@@ -9,11 +9,14 @@ import {
   lastProviderFailureCode,
 } from "@/lib/ai/circuit-breaker";
 import {
-  getOrCreateConversation,
+  getOrCreateVisitorConversation,
   getConversationHistory,
   saveMessage,
 } from "@/lib/ai/conversation-service";
 import { prisma } from "@/lib/db/prisma";
+import { trackEvent } from "@/lib/intelligence/events";
+import { getCustomerProfile, formatProfileForAI } from "@/lib/intelligence/profile";
+import { recommend } from "@/lib/recommendations/engine";
 import {
   buildCorsHeaders,
   fetchAllowedSiteUrls,
@@ -157,6 +160,9 @@ export async function POST(request: Request) {
     const siteToken = typeof body?.siteToken === "string" ? body.siteToken.trim() : "";
     const providedConversationId =
       typeof body?.conversationId === "string" ? body.conversationId.trim() : "";
+    // First-party anonymous visitor identity (cryptographically random in
+    // the browser — never an IP address)
+    const visitorId = typeof body?.visitorId === "string" ? body.visitorId.trim() : "";
     // Explicit product target from a card action (deterministic, DB-sourced
     // ID from the product card — never invented by the LLM)
     const targetProductId =
@@ -205,10 +211,27 @@ export async function POST(request: Request) {
 
     const tenantId = context.tenantId;
 
-    // ─── Conversation (continuation or new, scoped to tenant) ─
-    const conversation = providedConversationId
-      ? await prisma.conversation.findUnique({ where: { id: providedConversationId } })
-      : await getOrCreateConversation(tenantId, "web");
+    // ─── Conversation: per-VISITOR (no cross-visitor leakage) ─
+    // The first-party visitorId gives each website visitor their own
+    // persistent conversation that survives page navigation; an explicit
+    // conversationId continues that specific conversation.
+    let conversation: {
+      id: string;
+      tenantId: string;
+      createdAt: Date;
+      updatedAt: Date;
+    } | null = providedConversationId
+      ? await prisma.conversation.findUnique({
+          where: { id: providedConversationId },
+          select: { id: true, tenantId: true, createdAt: true, updatedAt: true },
+        })
+      : null;
+
+    let conversationWasCreated = false;
+    if (!conversation && visitorId) {
+      conversation = await getOrCreateVisitorConversation(tenantId, visitorId);
+      conversationWasCreated = conversation.createdAt > new Date(Date.now() - 2000);
+    }
 
     if (!conversation || conversation.tenantId !== tenantId) {
       return NextResponse.json(
@@ -225,6 +248,21 @@ export async function POST(request: Request) {
       await saveMessage(conversation.id, "user", message);
       const greetingText = buildGreetingText(context.siteName);
       await saveMessage(conversation.id, "assistant", greetingText);
+
+      // Customer intelligence events
+      await trackEvent(tenantId, {
+        type: "MESSAGE_SENT",
+        visitorId: visitorId || null,
+        metadata: { channel: "web", isGreeting: true },
+      });
+      if (conversationWasCreated) {
+        await trackEvent(tenantId, {
+          type: "CONVERSATION_STARTED",
+          visitorId: visitorId || null,
+          metadata: { channel: "web" },
+        });
+      }
+
       return ok(corsHeaders, {
         success: true,
         aiSuccess: true,
@@ -316,6 +354,28 @@ export async function POST(request: Request) {
         selectedProductId: product.id,
         selectedVariantId: pending.variationId ?? undefined,
         location,
+      });
+
+      // Customer intelligence events
+      await trackEvent(tenantId, {
+        type: "MESSAGE_SENT",
+        visitorId: visitorId || null,
+        metadata: { channel: "web" },
+      });
+      await trackEvent(tenantId, {
+        type: "PRODUCT_ADDED_TO_CART",
+        visitorId: visitorId || null,
+        metadata: {
+          productId: product.externalId,
+          variationId: pending.variationExternalId,
+          quantity: pending.quantity,
+          name: product.name,
+        },
+      });
+      await trackEvent(tenantId, {
+        type: "CHECKOUT_STARTED",
+        visitorId: visitorId || null,
+        metadata: { productId: product.externalId },
       });
 
       return ok(corsHeaders, {
@@ -501,6 +561,13 @@ export async function POST(request: Request) {
     // Gated on product-commerce intent: general questions (delivery,
     // small talk) go to the LLM instead of dumping the catalog.
     if (hasProductSignal(message)) {
+      await saveMessage(conversation.id, "user", message);
+      await trackEvent(tenantId, {
+        type: "MESSAGE_SENT",
+        visitorId: visitorId || null,
+        metadata: { channel: "web" },
+      });
+
       const candidates = pickProducts(catalog, message, recentProductIds, inventoryMode);
 
       if (candidates.length > 0) {
@@ -511,7 +578,6 @@ export async function POST(request: Request) {
           inventoryMode
         );
         const intro = buildIntroText(candidates, message);
-        await saveMessage(conversation.id, "user", message);
         const storedAssistant = `${intro}\n${cards.map((c) => `[PRODUCT:${c.id}]`).join("\n")}`;
         await saveMessage(conversation.id, "assistant", storedAssistant);
         await persistMetadata(conversation.id, {
@@ -519,6 +585,51 @@ export async function POST(request: Request) {
           selectedProductId: candidates[0].id,
           location,
         });
+
+        // Customer intelligence events
+        await trackEvent(tenantId, {
+          type: "PRODUCT_SEARCHED",
+          visitorId: visitorId || null,
+          metadata: {
+            query: message,
+            category: detectCategoryKey(message),
+            budget: range?.max ?? null,
+          },
+        });
+        await trackEvent(tenantId, {
+          type: "PRODUCT_RECOMMENDED",
+          visitorId: visitorId || null,
+          metadata: { productIds: cards.map((c) => c.id) },
+        });
+
+        // Proactive recommendation: one relevant complementary product
+        // within the stated budget (deterministic, transparent, optional)
+        const profile = await getCustomerProfile(tenantId, { visitorId });
+        const proactive = recommend({
+          profile,
+          intent: "PRODUCT_SEARCH",
+          currentProductId: candidates[0].id,
+          budget: range?.max ?? null,
+          catalog,
+          inventoryMode,
+          max: 1,
+        });
+        let suggestion: { message: string; product: Record<string, unknown> } | null = null;
+        if (proactive.length > 0 && !cards.some((c) => c.id === proactive[0].product.id)) {
+          const rec = proactive[0];
+          const recCard = buildProductCards(catalog, [rec.product.id], 1, inventoryMode)[0];
+          if (recCard) {
+            suggestion = {
+              message: "You might also like this one:",
+              product: recCard as unknown as Record<string, unknown>,
+            };
+            await trackEvent(tenantId, {
+              type: "PRODUCT_RECOMMENDED",
+              visitorId: visitorId || null,
+              metadata: { productIds: [rec.product.id], proactive: true, reason: rec.reason },
+            });
+          }
+        }
 
         return ok(corsHeaders, {
           success: true,
@@ -529,6 +640,7 @@ export async function POST(request: Request) {
           intent: referencesRecentProduct(message) ? "FOLLOW_UP" : "PRODUCT_SEARCH",
           products: cards,
           selectedProduct: cards[0] ?? null,
+          suggestion,
           cartAction: null,
           location,
         });
@@ -561,7 +673,23 @@ export async function POST(request: Request) {
     // runs when the deterministic matcher found no candidates. If the
     // provider is rate limited/unavailable, a concise deterministic
     // clarification is returned — product discovery never depended on it.
+    // Compact customer-context summary + deterministic recommendation
+    // candidates for the AI (it turns them into natural language — it
+    // never invents candidates).
+    let profileContext = "";
+    try {
+      const profile = await getCustomerProfile(tenantId, { visitorId });
+      profileContext = formatProfileForAI(profile);
+    } catch (error) {
+      console.error("[INTELLIGENCE] Profile failed:", error);
+    }
+
     await saveMessage(conversation.id, "user", message);
+    await trackEvent(tenantId, {
+      type: "MESSAGE_SENT",
+      visitorId: visitorId || null,
+      metadata: { channel: "web" },
+    });
 
     let result;
     let aiProviderStatus: string | null = null;
@@ -581,7 +709,9 @@ export async function POST(request: Request) {
           timestamp: new Date().toISOString(),
         },
         history,
-        { extraSystem: buildWebsiteSystemSupplement(context, location) }
+        {
+          extraSystem: buildWebsiteSystemSupplement(context, location, profileContext),
+        }
       );
 
       if (!result.success) {
@@ -693,7 +823,11 @@ async function loadCatalog(tenantId: string): Promise<CatalogProduct[]> {
  * The LLM is a language layer only — it must never produce product
  * tables, cards, URLs, prices, or stock data in its text.
  */
-function buildWebsiteSystemSupplement(context: WebsiteContext, location: string | null): string {
+function buildWebsiteSystemSupplement(
+  context: WebsiteContext,
+  location: string | null,
+  profileContext?: string
+): string {
   const lines: string[] = [
     "## Website widget context",
     `You are answering on the merchant's website chat widget${context.siteName ? ` (${context.siteName})` : ""}.`,
@@ -716,6 +850,10 @@ function buildWebsiteSystemSupplement(context: WebsiteContext, location: string 
 
   if (location) {
     lines.push(`- The customer's delivery location is: "${location}". Use it when discussing delivery.`);
+  }
+
+  if (profileContext) {
+    lines.push("## Customer context (deterministic — never invent from these, only use them)", profileContext);
   }
 
   lines.push(

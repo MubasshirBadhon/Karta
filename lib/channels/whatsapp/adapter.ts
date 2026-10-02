@@ -2,6 +2,8 @@ import { prisma } from "@/lib/db/prisma";
 import { createUnifiedMessage, type UnifiedMessage } from "@/lib/channels/types";
 import { parseWhatsAppPayload, type ParsedWhatsAppMessage } from "./parser";
 import type { WhatsAppWebhookPayload } from "./types";
+import { normalizePhone } from "@/lib/intelligence/identity";
+import { trackEvent } from "@/lib/intelligence/events";
 
 /**
  * WhatsApp Channel Adapter
@@ -33,18 +35,24 @@ export async function resolveTenantByPhoneNumber(
 
 /**
  * Get or create a customer for a WhatsApp phone number.
- * Uses tenantId + phone as the logical customer identity.
+ * Uses tenantId + NORMALIZED phone as the logical customer identity:
+ * the same phone → the same customer (same conversations, same behavior
+ * history, same cart identity); a different phone → a different customer;
+ * a different tenant → completely isolated.
  */
 export async function getOrCreateCustomer(
   tenantId: string,
   phone: string,
   name?: string
 ): Promise<{ id: string }> {
+  // Normalize the phone to a canonical form (E.164-ish)
+  const normalized = normalizePhone(phone) || phone;
+
   // Look for existing customer by phone
   const existing = await prisma.customer.findFirst({
     where: {
       tenantId,
-      phone,
+      phone: normalized,
     },
   });
 
@@ -56,9 +64,9 @@ export async function getOrCreateCustomer(
   const customer = await prisma.customer.create({
     data: {
       tenantId,
-      phone,
+      phone: normalized,
       name: name || null,
-      externalId: `wa_${phone}`,
+      externalId: `wa_${normalized}`,
     },
   });
 
