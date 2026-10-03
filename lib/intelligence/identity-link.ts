@@ -108,6 +108,17 @@ export async function linkVisitorToCustomer(
       customer = { id: created.id };
     }
 
+    // Deterministic dedup (re-point): if a DIFFERENT customer row already
+    // holds this visitorId, clear it there first so the unique constraint
+    // (tenantId, visitorId) stays satisfiable. The visitor's identity
+    // moves to the newly linked customer; histories are preserved.
+    if (visitorId) {
+      await prisma.customer.updateMany({
+        where: { tenantId, visitorId, id: { not: customer.id } },
+        data: { visitorId: null },
+      });
+    }
+
     // ─── Preserve history: re-link the visitor's conversations ──
     // The anonymous conversations keep their messages; they now belong
     // to the merged customer identity.

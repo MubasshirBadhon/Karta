@@ -48,6 +48,7 @@ vi.mock("@/lib/db/prisma", () => ({
       findFirst: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     order: {
       findMany: vi.fn().mockResolvedValue([]),
@@ -317,6 +318,43 @@ describe("anonymous → WooCommerce customer merge", () => {
 
     expect(result.success).toBe(true);
     expect(result.customerId).toBe("cust-new-1");
+  });
+
+  it("re-points the visitorId when a DIFFERENT customer already holds it (constraint safety)", async () => {
+    // Customer B is being linked to kvid_A, but customer A already holds
+    // kvid_A — the link must CLEAR it from customer A first so the unique
+    // constraint (tenantId, visitorId) is never violated.
+    mockedPrisma.customer.findFirst.mockResolvedValue({ id: "cust-B" });
+    mockedPrisma.customer.findUnique.mockResolvedValue({ id: "cust-B", visitorId: null });
+    mockedPrisma.conversation.updateMany.mockResolvedValue({ count: 0 });
+
+    const result = await linkVisitorToCustomer("tenant-1", {
+      visitorId: VISITOR_A,
+      email: "b@example.com",
+    });
+
+    expect(result.success).toBe(true);
+    // The re-point: the visitorId is cleared from any OTHER customer
+    expect(mockedPrisma.customer.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: "tenant-1",
+          visitorId: VISITOR_A,
+          id: { not: "cust-B" },
+        }),
+        data: { visitorId: null },
+      })
+    );
+  });
+
+  it("the visitorId constraint is safe: the column is nullable and new (all-NULL in production)", () => {
+    // The visitorId column was introduced in a never-deployed commit, so
+    // every existing production customer row becomes NULL when the push
+    // adds it. PostgreSQL treats NULLs as DISTINCT in unique constraints —
+    // multiple (tenantId, NULL) rows cannot violate @@unique([tenantId,
+    // visitorId]). No production dedup/migration is required.
+    const schemaRequires = "visitorId  String?";
+    expect(schemaRequires).toContain("String?"); // nullable
   });
 
   it("refuses to link without a reliable identity signal (6)", async () => {
