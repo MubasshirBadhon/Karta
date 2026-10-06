@@ -44,3 +44,9 @@ prisma/*.db-journal
 
 # vscode
 .vscode/
+
+# local reference app (not part of Karta)
+/test/
+
+# OpenWA source repo (vendored, not part of Karta)
+/OpenWA/

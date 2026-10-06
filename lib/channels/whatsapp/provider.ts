@@ -1,4 +1,5 @@
 import type { WhatsAppConfig, WhatsAppSendMessageRequest, WhatsAppSendMessageResponse } from "./types";
+import { OpenWAProvider } from "./openwa/provider";
 
 /**
  * WhatsApp Provider
@@ -15,6 +16,8 @@ export interface WhatsAppProvider {
     phoneNumberId: string;
     recipientPhone: string;
     text: string;
+    /** Optional explicit chat ID (used by the OpenWA transport; ignored by Meta) */
+    chatId?: string;
   }): Promise<{ externalMessageId: string }>;
 }
 
@@ -74,30 +77,55 @@ export class WhatsAppCloudProvider implements WhatsAppProvider {
 
 /**
  * Get the configured WhatsApp provider.
- * Reads credentials from server-side environment variables only.
+ * Selected via WHATSAPP_PROVIDER: "openwa" | "meta" (default: "meta").
+ *
+ * SECURITY: credentials are read from server-side environment variables
+ * only — never exposed to browser code, the WordPress plugin, customers,
+ * or any API response.
  */
 export function getWhatsAppProvider(): WhatsAppProvider {
-  const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-  const apiVersion = process.env.WHATSAPP_API_VERSION || "v18.0";
-  const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+  const provider = process.env.WHATSAPP_PROVIDER || "meta";
 
-  if (!accessToken) {
-    throw new Error("WHATSAPP_ACCESS_TOKEN is not set");
-  }
-  if (!phoneNumberId) {
-    throw new Error("WHATSAPP_PHONE_NUMBER_ID is not set");
-  }
-  if (!verifyToken) {
-    throw new Error("WHATSAPP_VERIFY_TOKEN is not set");
-  }
+  switch (provider) {
+    case "openwa": {
+      // OpenWA transport (local OpenWA instance) — the Meta credentials
+      // are NOT required in this mode.
+      const baseUrl = process.env.OPENWA_BASE_URL;
+      const apiKey = process.env.OPENWA_API_KEY;
+      const sessionId = process.env.OPENWA_SESSION_ID;
 
-  return new WhatsAppCloudProvider({
-    accessToken,
-    phoneNumberId,
-    businessAccountId,
-    apiVersion,
-    verifyToken,
-  });
+      if (!baseUrl || !apiKey || !sessionId) {
+        throw new Error("OpenWA is not configured: OPENWA_BASE_URL, OPENWA_API_KEY and OPENWA_SESSION_ID are required");
+      }
+
+      return new OpenWAProvider({ baseUrl, apiKey, sessionId });
+    }
+    case "meta":
+    default: {
+      // The existing Meta Cloud provider — completely unchanged.
+      const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+      const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+      const apiVersion = process.env.WHATSAPP_API_VERSION || "v18.0";
+      const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
+
+      if (!accessToken) {
+        throw new Error("WHATSAPP_ACCESS_TOKEN is not set");
+      }
+      if (!phoneNumberId) {
+        throw new Error("WHATSAPP_PHONE_NUMBER_ID is not set");
+      }
+      if (!verifyToken) {
+        throw new Error("WHATSAPP_VERIFY_TOKEN is not set");
+      }
+
+      return new WhatsAppCloudProvider({
+        accessToken,
+        phoneNumberId,
+        businessAccountId,
+        apiVersion,
+        verifyToken,
+      });
+    }
+  }
 }
