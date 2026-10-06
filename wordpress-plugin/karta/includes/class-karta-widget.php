@@ -44,14 +44,14 @@ class Karta_Widget {
             'karta-widget',
             KARTA_PLUGIN_URL . 'assets/widget.css',
             [],
-            KARTA_VERSION
+            KARTA_VERSION . '-' . time()
         );
 
         wp_enqueue_script(
             'karta-widget',
             KARTA_PLUGIN_URL . 'assets/widget.js',
             [],
-            KARTA_VERSION,
+            KARTA_VERSION . '-' . time(),
             true
         );
 

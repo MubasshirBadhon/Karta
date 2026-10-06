@@ -547,17 +547,22 @@
     var requestBody;
 
     if (AJAX_URL) {
-      // Local WordPress endpoint: form-encoded with nonce
-      requestBody = JSON.stringify({
-        action: "karta_send_message",
-        nonce: CART_NONCE,
-        visitorId: visitorId,
-        message: payload.message,
-        conversationId: conversationId,
-      });
+      // Local WordPress endpoint: WordPress admin-ajax.php expects
+      // form-encoded data, NOT JSON. Send as URLSearchParams.
+      var params = new URLSearchParams();
+      params.append("action", "karta_send_message");
+      params.append("nonce", CART_NONCE);
+      params.append("visitorId", visitorId);
+      params.append("message", payload.message);
+      if (conversationId) {
+        params.append("conversationId", conversationId);
+      }
+      requestBody = params.toString();
+      requestHeaders = { "Content-Type": "application/x-www-form-urlencoded" };
     } else {
       // Direct to Karta Cloud
       requestBody = JSON.stringify(body);
+      requestHeaders = { "Content-Type": "application/json" };
     }
 
     fetch(targetUrl, {

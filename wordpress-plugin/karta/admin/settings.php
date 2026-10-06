@@ -89,6 +89,10 @@
         </table>
 
         <p>
+            <?php submit_button('Save Changes', 'primary', 'submit', true); ?>
+        </p>
+
+        <p>
             <button type="button" class="button button-primary" id="karta-sync-products">
                 Sync Products
             </button>
