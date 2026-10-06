@@ -3,7 +3,7 @@
  * Plugin Name: Karta
  * Plugin URI: https://karta.ai
  * Description: Connect your WooCommerce store to Karta AI commerce platform.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Author: Karta
  * License: GPL v2 or later
  * Text Domain: karta
@@ -16,7 +16,7 @@ if (!defined('ABSPATH')) {
 // Define plugin constants
 define('KARTA_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('KARTA_PLUGIN_URL', plugin_dir_url(__FILE__));
-define('KARTA_VERSION', '0.1.0');
+define('KARTA_VERSION', '0.2.0');
 
 // Check for WooCommerce dependency
 add_action('admin_init', 'karta_check_woocommerce_dependency');
@@ -40,6 +40,7 @@ require_once KARTA_PLUGIN_DIR . 'includes/class-karta-webhooks.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-ajax.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-widget.php';
 require_once KARTA_PLUGIN_DIR . 'includes/class-karta-cart.php';
+require_once KARTA_PLUGIN_DIR . 'includes/class-karta-updater.php';
 
 // Initialize plugin
 add_action('init', 'karta_init_plugin');
@@ -51,6 +52,7 @@ function karta_init_plugin() {
     Karta_Ajax::init();
     Karta_Widget::init();
     Karta_Cart::init();
+    Karta_Updater::init();
 }
 
 // Register REST API endpoint for WooCommerce webhooks

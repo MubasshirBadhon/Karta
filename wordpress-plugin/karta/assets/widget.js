@@ -418,28 +418,16 @@
         body.appendChild(el("p", "karta-card-variants", p.variants.join(" · ")));
       }
 
-      // Actions: View Product (exact WooCommerce URL) + Add to cart
-      var actions = el("div", "karta-card-actions");
-
+      // Actions: View Product (exact WooCommerce URL) only.
+      // Add-to-cart happens automatically when the customer confirms
+      // purchase intent in the chat — no manual button needed.
       if (p.productUrl) {
+        var actions = el("div", "karta-card-actions");
         var link = el("a", "karta-card-link", "View Product");
         link.href = p.productUrl;
         link.target = "_blank";
         link.rel = "noopener";
         actions.appendChild(link);
-      }
-
-      if (p.available && CART_ENDPOINT && CART_NONCE) {
-        var addBtn = el("button", "karta-card-add", "Add to Cart");
-        addBtn.setAttribute("type", "button");
-        addBtn.setAttribute("data-karta-product-id", p.id);
-        addBtn.addEventListener("click", function (event) {
-          requestAddToCart(event.currentTarget.getAttribute("data-karta-product-id"));
-        });
-        actions.appendChild(addBtn);
-      }
-
-      if (actions.childNodes.length) {
         body.appendChild(actions);
       }
 
@@ -455,27 +443,6 @@
     var placeholder = el("div", "karta-card-img karta-card-img-empty");
     placeholder.textContent = "No image";
     return placeholder;
-  }
-
-  // ─── Add to cart (explicit confirmation already given by the API) ──
-
-  function requestAddToCart(kartaProductId) {
-    // Idempotency: a double click / browser retry must not send duplicate
-    // requests — the pending guard covers both sendMessage and card adds.
-    if (isPending || !kartaProductId) return;
-
-    isPending = true;
-    inputEl.disabled = true;
-    sendBtn.disabled = true;
-
-    // Resolve the WooCommerce IDs from the Karta product ID via the
-    // chat API confirmation flow: send an add-to-cart message so the
-    // deterministic layer resolves the exact product/variation and
-    // returns a cartAction after confirmation.
-    var text = "add this to cart";
-    addMessage("user", text);
-    showTyping();
-    chatRequest({ message: text, targetProductId: kartaProductId });
   }
 
   // ─── Error states (distinct, friendly, retry allowed) ────────
