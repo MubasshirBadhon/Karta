@@ -65,16 +65,8 @@ export async function createWooCommerceConnection(
       return { success: false, error: "Invalid tenant" };
     }
 
-    // Check if tenant already has an active connection
-    const existing = await prisma.wooCommerceConnection.findFirst({
-      where: { tenantId, status: "active" },
-    });
-    if (existing) {
-      return {
-        success: false,
-        error: "Tenant already has an active connection. Disconnect first.",
-      };
-    }
+    // Multiple connections per tenant are supported — each store gets its
+    // own connection credentials. No single-connection restriction.
 
     // Generate credentials
     const connectionId = generateConnectionId();

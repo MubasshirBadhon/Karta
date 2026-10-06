@@ -14,6 +14,22 @@ class Karta_Ajax {
     public static function init() {
         add_action('wp_ajax_karta_test_connection', [__CLASS__, 'ajax_test_connection']);
         add_action('wp_ajax_karta_diagnostics', [__CLASS__, 'ajax_diagnostics']);
+        add_action('wp_ajax_karta_disconnect', [__CLASS__, 'ajax_disconnect']);
+    }
+
+    /**
+     * AJAX handler for disconnecting from Karta Cloud.
+     */
+    public static function ajax_disconnect() {
+        check_ajax_referer('karta_admin_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(['message' => 'Permission denied.']);
+        }
+
+        Karta_Settings::disconnect();
+
+        wp_send_json_success(['message' => 'Disconnected successfully.']);
     }
 
     /**
