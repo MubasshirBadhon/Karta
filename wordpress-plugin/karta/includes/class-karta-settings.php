@@ -46,6 +46,31 @@ class Karta_Settings {
             'sanitize_callback' => 'sanitize_text_field',
             'default' => '',
         ]);
+        register_setting(self::$option_group, 'karta_ai_name', [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => 'Karta AI',
+        ]);
+        register_setting(self::$option_group, 'karta_ai_color', [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_hex_color',
+            'default' => '#6366f1',
+        ]);
+        register_setting(self::$option_group, 'karta_currency', [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => 'BDT',
+        ]);
+        register_setting(self::$option_group, 'karta_currency_symbol', [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => '৳',
+        ]);
+        register_setting(self::$option_group, 'karta_priority_products', [
+            'type' => 'string',
+            'sanitize_callback' => 'sanitize_text_field',
+            'default' => '',
+        ]);
     }
 
     public static function enqueue_admin_assets($hook) {
@@ -79,42 +104,52 @@ class Karta_Settings {
         $api_url = get_option('karta_api_url', '');
         $connection_id = get_option('karta_connection_id', '');
         $secret = get_option('karta_secret', '');
+        $ai_name = get_option('karta_ai_name', 'Karta AI');
+        $ai_color = get_option('karta_ai_color', '#6366f1');
+        $currency = get_option('karta_currency', 'BDT');
+        $currency_symbol = get_option('karta_currency_symbol', '৳');
+        $priority_products = get_option('karta_priority_products', '');
         $is_connected = !empty($api_url) && !empty($connection_id) && !empty($secret);
 
         include KARTA_PLUGIN_DIR . 'admin/settings.php';
     }
 
-    /**
-     * Get the Karta API URL.
-     */
     public static function get_api_url() {
         return rtrim(get_option('karta_api_url', ''), '/');
     }
 
-    /**
-     * Get the connection ID.
-     */
     public static function get_connection_id() {
         return get_option('karta_connection_id', '');
     }
 
-    /**
-     * Get the connection secret.
-     */
     public static function get_secret() {
         return get_option('karta_secret', '');
     }
 
-    /**
-     * Check if the plugin is configured.
-     */
+    public static function get_ai_name() {
+        return get_option('karta_ai_name', 'Karta AI');
+    }
+
+    public static function get_ai_color() {
+        return get_option('karta_ai_color', '#6366f1');
+    }
+
+    public static function get_currency() {
+        return get_option('karta_currency', 'BDT');
+    }
+
+    public static function get_currency_symbol() {
+        return get_option('karta_currency_symbol', '৳');
+    }
+
+    public static function get_priority_products() {
+        return get_option('karta_priority_products', '');
+    }
+
     public static function is_configured() {
         return !empty(self::get_api_url()) && !empty(self::get_connection_id()) && !empty(self::get_secret());
     }
 
-    /**
-     * Clear all settings (disconnect).
-     */
     public static function disconnect() {
         delete_option('karta_api_url');
         delete_option('karta_connection_id');

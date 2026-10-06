@@ -60,6 +60,7 @@ class Karta_Widget {
         //   secret — per docs/demo-setup.md it is a public, revocable
         //   identifier used to resolve the store/tenant server-side)
         // - apiUrl/endpoint: the public Karta chat API location
+        // - aiName/aiColor/currencySymbol: merchant-customizable appearance
         // The connection secret, tenant ID, and all credentials remain
         // server-side only.
         wp_localize_script('karta-widget', 'kartaWidget', [
@@ -69,6 +70,14 @@ class Karta_Widget {
             // Per-session nonce for the same-origin cart bridge (CSRF protection)
             'cartNonce' => wp_create_nonce('karta_cart_nonce'),
             'cartEndpoint' => home_url('/wp-json/karta/v1/cart/add'),
+            // Merchant-customizable appearance
+            'aiName' => Karta_Settings::get_ai_name(),
+            'aiColor' => Karta_Settings::get_ai_color(),
+            'currency' => Karta_Settings::get_currency(),
+            'currencySymbol' => Karta_Settings::get_currency_symbol(),
+            // Local WordPress AJAX endpoint (behavior tracking + conversation recording)
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'trackEndpoint' => home_url('/wp-json/karta/v1/cart/add'),
         ]);
     }
 }

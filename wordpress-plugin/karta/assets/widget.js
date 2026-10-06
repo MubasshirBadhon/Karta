@@ -39,9 +39,14 @@
   var SITE_TOKEN = String(cfg.siteToken);
   var CART_NONCE = String(cfg.cartNonce || "");
   var CART_ENDPOINT = String(cfg.cartEndpoint || "");
+  var CURRENCY_SYMBOL = String(cfg.currencySymbol || "$");
+  var AI_NAME = String(cfg.aiName || "Karta AI");
+  var AI_COLOR = String(cfg.aiColor || "#6366f1");
+  var AJAX_URL = String(cfg.ajaxUrl || "");
+  var TRACK_ENDPOINT = String(cfg.trackEndpoint || "");
 
   var WELCOME_MESSAGE =
-    "Hi! I'm Karta, your AI shopping assistant. What are you looking for today?";
+    "Hi! I'm " + AI_NAME + ", your AI shopping assistant. What are you looking for today?";
 
   var SESSION_KEY = "karta_conversation_id";
   var VISITOR_KEY = "karta_visitor_id";
@@ -117,7 +122,7 @@
   }
 
   function money(value) {
-    return "\u09F3" + Number(value || 0).toLocaleString("en-IN");
+    return CURRENCY_SYMBOL + Number(value || 0).toLocaleString("en-US");
   }
 
   // ─── Build widget markup ─────────────────────────────────────
@@ -141,9 +146,10 @@
 
     // Header
     var header = el("div", "karta-header");
+    header.style.background = AI_COLOR;
     header.appendChild(el("span", "karta-header-badge", "K"));
     var headerTitle = el("div", "karta-header-title");
-    headerTitle.appendChild(el("p", "karta-header-name", "Karta AI"));
+    headerTitle.appendChild(el("p", "karta-header-name", AI_NAME));
     headerTitle.appendChild(el("p", "karta-header-subtitle", "Shopping Assistant"));
     header.appendChild(headerTitle);
     var clearBtn = el("button", "karta-clear", "Clear");
@@ -445,6 +451,41 @@
     return placeholder;
   }
 
+  // ─── Add-to-cart helpers ──────────────────────────────────────
+
+  function wantsAddToCart(text) {
+    var t = String(text || "").toLowerCase();
+    return (
+      t.indexOf("add") !== -1 && t.indexOf("cart") !== -1 ||
+      t.indexOf("add to cart") !== -1 ||
+      t.indexOf("কার্টে") !== -1 ||
+      t.indexOf("যোগ") !== -1 ||
+      t.indexOf("nibo") !== -1 ||
+      t.indexOf("buy") !== -1 ||
+      t.indexOf("order") !== -1
+    );
+  }
+
+  function resolveProductFromMessage(text, products) {
+    if (!products || !products.length) return null;
+    var t = String(text || "").toLowerCase();
+
+    // Try to match a product name in the message
+    for (var i = 0; i < products.length; i++) {
+      var name = String(products[i].name || "").toLowerCase();
+      if (name && t.indexOf(name) !== -1) {
+        return products[i].id;
+      }
+    }
+
+    // Default to the first product if the message is a clear add-to-cart intent
+    if (products.length === 1) {
+      return products[0].id;
+    }
+
+    return null;
+  }
+
   // ─── Error states (distinct, friendly, retry allowed) ────────
 
   function friendlyError(status) {
@@ -496,10 +537,33 @@
       body.targetProductId = payload.targetProductId;
     }
 
-    fetch(API_URL, {
+    // Include behavior context so the AI can deliver the correct product
+    body.viewedProducts = getRecentViewedProducts();
+
+    // Use the local WordPress AJAX endpoint when available — it tracks
+    // behavior and records the conversation before forwarding to Karta.
+    var targetUrl = AJAX_URL || API_URL;
+    var requestHeaders = { "Content-Type": "application/json" };
+    var requestBody;
+
+    if (AJAX_URL) {
+      // Local WordPress endpoint: form-encoded with nonce
+      requestBody = JSON.stringify({
+        action: "karta_send_message",
+        nonce: CART_NONCE,
+        visitorId: visitorId,
+        message: payload.message,
+        conversationId: conversationId,
+      });
+    } else {
+      // Direct to Karta Cloud
+      requestBody = JSON.stringify(body);
+    }
+
+    fetch(targetUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      headers: requestHeaders,
+      body: requestBody,
     })
       .then(function (response) {
         return response
@@ -531,6 +595,29 @@
         sendBtn.disabled = false;
         inputEl.focus();
       });
+  }
+
+  // ─── Behavior tracking (local, sent with each message) ────────
+
+  function getRecentViewedProducts() {
+    try {
+      var views = JSON.parse(localStorage.getItem("karta_product_views") || "[]");
+      return views.slice(-10);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function trackProductView(productId) {
+    if (!productId) return;
+    try {
+      var views = JSON.parse(localStorage.getItem("karta_product_views") || "[]");
+      views.push(Number(productId));
+      if (views.length > 50) views = views.slice(-50);
+      localStorage.setItem("karta_product_views", JSON.stringify(views));
+    } catch (e) {
+      /* storage unavailable */
+    }
   }
 
   function handleChatResponse(result) {
@@ -571,6 +658,21 @@
       // own WooCommerce cart (customer's session, same origin).
       if (data.cartAction && data.cartAction.type === "addToCart") {
         performAddToCart(data.cartAction);
+      }
+
+      // If the customer explicitly asked to add to cart but the API didn't
+      // return a cartAction, try to resolve the product from the message
+      // and add it directly.
+      if (!data.cartAction && wantsAddToCart(text)) {
+        var productId = resolveProductFromMessage(text, data.products);
+        if (productId) {
+          performAddToCart({
+            productId: productId,
+            variationId: 0,
+            quantity: 1,
+            inventoryMode: "unlimited",
+          });
+        }
       }
 
       if (!text && !hasProducts) {

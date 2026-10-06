@@ -36,6 +36,58 @@
             </tr>
         </table>
 
+        <h2>AI Appearance</h2>
+        <table class="form-table">
+            <tr>
+                <th><label for="karta_ai_name">AI Name</label></th>
+                <td>
+                    <input type="text" id="karta_ai_name" name="karta_ai_name"
+                           value="<?php echo esc_attr($ai_name); ?>"
+                           class="regular-text">
+                    <p class="description">The name shown in the chat widget header.</p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="karta_ai_color">AI Color</label></th>
+                <td>
+                    <input type="color" id="karta_ai_color" name="karta_ai_color"
+                           value="<?php echo esc_attr($ai_color); ?>">
+                    <p class="description">Primary color for the chat widget (header, buttons, links).</p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="karta_currency">Currency Code</label></th>
+                <td>
+                    <input type="text" id="karta_currency" name="karta_currency"
+                           value="<?php echo esc_attr($currency); ?>"
+                           class="small-text" placeholder="USD">
+                    <p class="description">Currency code (e.g. USD, BDT, EUR).</p>
+                </td>
+            </tr>
+            <tr>
+                <th><label for="karta_currency_symbol">Currency Symbol</label></th>
+                <td>
+                    <input type="text" id="karta_currency_symbol" name="karta_currency_symbol"
+                           value="<?php echo esc_attr($currency_symbol); ?>"
+                           class="small-text" placeholder="$">
+                    <p class="description">Currency symbol shown in prices (e.g. $, ৳, €).</p>
+                </td>
+            </tr>
+        </table>
+
+        <h2>Priority Products</h2>
+        <table class="form-table">
+            <tr>
+                <th><label for="karta_priority_products">Priority Product IDs</label></th>
+                <td>
+                    <input type="text" id="karta_priority_products" name="karta_priority_products"
+                           value="<?php echo esc_attr($priority_products); ?>"
+                           class="regular-text">
+                    <p class="description">Comma-separated WooCommerce product IDs to prioritize in AI recommendations. Draft/out-of-stock products are automatically hidden.</p>
+                </td>
+            </tr>
+        </table>
+
         <p>
             <button type="button" class="button button-primary" id="karta-sync-products">
                 Sync Products

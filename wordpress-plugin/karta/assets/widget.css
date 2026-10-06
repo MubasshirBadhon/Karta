@@ -120,6 +120,17 @@
     max-height: none;
     border-radius: 0;
   }
+
+  /* Hide the launcher when the popup is open on mobile —
+     it would otherwise cover the send button */
+  #karta-chat-root .karta-launcher {
+    display: none;
+  }
+
+  /* Show a close button in the header instead */
+  #karta-chat-root .karta-header {
+    padding-top: env(safe-area-inset-top, 0);
+  }
 }
 
 /* ─── Popup header ───────────────────────────────────────────── */
