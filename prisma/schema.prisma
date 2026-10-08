@@ -128,11 +128,13 @@ model Product {
   variants  ProductVariant[]
   orderItems OrderItem[]
 
-  // Identity: one product per (tenantId, externalId) — enforced by the
-  // unique constraints below. Connection scoping is handled in the sync
-  // layer (adoption/claiming) and this index makes the scoped lookup fast.
-  @@unique([tenantId, slug])
-  @@unique([tenantId, externalId])
+  // Identity: one product per (tenantId, wooConnectionId, externalId) —
+  // enforced by the unique constraints below. Connection scoping is handled
+  // in the sync layer (adoption/claiming) and this index makes the scoped
+  // lookup fast. Slug is also scoped to the connection so two stores can
+  // have products with the same slug without collision.
+  @@unique([tenantId, wooConnectionId, slug])
+  @@unique([tenantId, wooConnectionId, externalId])
   @@index([tenantId, wooConnectionId, externalId])
   @@index([tenantId])
   @@index([wooConnectionId])
