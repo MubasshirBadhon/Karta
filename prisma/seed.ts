@@ -110,8 +110,9 @@ async function main() {
 
     const existing = await prisma.product.findUnique({
       where: {
-        tenantId_externalId: {
+        tenantId_wooConnectionId_externalId: {
           tenantId: tenant.id,
+          wooConnectionId,
           externalId: product.externalId,
         },
       },
